@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,46 +34,54 @@ class RenderReport:
     failures: list[Failure] = field(default_factory=list)
 
 
-def render(project: Project, output: Path, downloader: Downloader | None = None, workdir: Path | None = None) -> RenderReport:
+def render(
+    project: Project,
+    output: Path,
+    downloader: Downloader | None = None,
+    workdir: Path | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> RenderReport:
+    """下載片段 → 逐段合成 → 串接輸出。下載不到或讀不了的片段改成靜態段落，不中斷整支影片（spec §8.3）。"""
     ffmpeg.require_ffmpeg()
+    report_progress = progress or (lambda message: None)
     if downloader is None and any(s.clip for s in project.segments):
         downloader = YtDlpDownloader()
     output = Path(output)
-    report = RenderReport()
+    failures: dict[int, Failure] = {}
     with tempfile.TemporaryDirectory(prefix="critshowcase-", dir=workdir) as tmp:
         clips_dir = Path(tmp) / "clips"
         clips_dir.mkdir()
+
+        clip_files: dict[int, Path] = {}
+        wanted = [(i, s) for i, s in enumerate(project.segments) if s.clip]
+        for n, (index, segment) in enumerate(wanted, start=1):
+            assert segment.clip is not None and downloader is not None
+            report_progress(f"下載片段 {n} / {len(wanted)}：{segment.clip.youtube_id}")
+            try:
+                clip_files[index] = downloader.fetch(segment.clip, segment.seconds, clips_dir)
+            except DownloadError as error:
+                failures[index] = Failure(index + 1, segment.clip.youtube_id, str(error))
+
         parts = []
         for index, segment in enumerate(project.segments):
+            report_progress(f"合成段落 {index + 1} / {len(project.segments)}")
             part = Path(tmp) / f"{index:03d}.mkv"
-            failure = None
-            if segment.clip and downloader:
-                failure = _try_clip_segment(project, segment, downloader, clips_dir, part)
-            if failure:
-                report.failures.append(Failure(index + 1, segment.clip.youtube_id if segment.clip else "", failure))
-            if failure or not segment.clip:
+            if index in clip_files and segment.clip:
+                try:
+                    _clip_segment(project, segment, clip_files[index], part)
+                except ffmpeg.RenderError:
+                    failures[index] = Failure(index + 1, segment.clip.youtube_id, "片段檔案無法讀取")
+            if index not in clip_files or index in failures:
                 _static_segment(project, segment, part)
             parts.append(part)
+
+        report_progress("輸出 mp4")
         # 先寫到暫存檔，完成才換上去，失敗時不留下半成品
         partial = Path(tmp) / "output.mp4"
         _join(project, parts, partial)
         output.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(partial, output)
-    return report
-
-
-def _try_clip_segment(project: Project, segment: Segment, downloader: Downloader, clips_dir: Path, part: Path) -> str | None:
-    """成功時回傳 None；下載不到或片段讀不了時回傳原因，由呼叫端改成靜態段落（spec §8.3：不中斷整支影片）。"""
-    assert segment.clip is not None
-    try:
-        clip_file = downloader.fetch(segment.clip, segment.seconds, clips_dir)
-    except DownloadError as error:
-        return str(error)
-    try:
-        _clip_segment(project, segment, clip_file, part)
-    except ffmpeg.RenderError:
-        return "片段檔案無法讀取"
-    return None
+    return RenderReport([failures[i] for i in sorted(failures)])
 
 
 def _static_segment(project: Project, segment: Segment, part: Path) -> None:

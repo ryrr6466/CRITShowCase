@@ -6,6 +6,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+from critshowcase.cache import CachedDownloader, default_cache_dir
 from critshowcase.download import Downloader, YtDlpDownloader
 from critshowcase.ffmpeg import RenderError, ToolMissing
 from critshowcase.project import ProjectError, load_project
@@ -31,8 +32,12 @@ def main(argv: list[str] | None = None, downloader: Downloader | None = None) ->
         with tempfile.TemporaryDirectory(prefix="critshowcase-") as tmp:
             project = load_project(source, workdir=Path(tmp) / "project")
             if downloader is None and any(segment.clip for segment in project.segments):
-                downloader = YtDlpDownloader(args.cookies_from_browser, Path(args.cookies) if args.cookies else None)
-            report = render(project, output, downloader=downloader, workdir=Path(tmp))
+                downloader = CachedDownloader(
+                    YtDlpDownloader(args.cookies_from_browser, Path(args.cookies) if args.cookies else None),
+                    default_cache_dir(),
+                    refresh=args.refresh,
+                )
+            report = render(project, output, downloader=downloader, workdir=Path(tmp), progress=lambda message: print(message, flush=True))
     except (ProjectError, ToolMissing, RenderError) as error:
         print(f"critshowcase：{error}", file=sys.stderr)
         return EXIT_ERROR
@@ -55,6 +60,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("-o", "--output", help="輸出的 mp4 路徑（預設放在輸入檔旁邊）")
     parser.add_argument("--cookies-from-browser", metavar="BROWSER", help="YouTube 要求登入驗證時，使用這個瀏覽器的 cookies（例如 firefox、chrome）")
     parser.add_argument("--cookies", metavar="FILE", help="YouTube 要求登入驗證時，使用匯出的 cookies.txt")
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help=f"不用快取，所有片段重新下載（快取在 {default_cache_dir()}，可以直接刪除）",
+    )
     return parser
 
 

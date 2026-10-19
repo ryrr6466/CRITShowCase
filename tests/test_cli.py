@@ -51,3 +51,25 @@ def test_failed_downloads_are_listed_and_exit_nonzero(make_project, tmp_path, ca
     assert out.is_file()
     err = capsys.readouterr().err
     assert "第 1 段" in err and "bbbbbbbbbbb" in err and "影片設成私人" in err
+
+
+def test_shows_progress_and_output_location(make_project, tmp_path, capsys):
+    from conftest import FakeDownloader
+
+    clip = {"youtubeId": "aaaaaaaaaaa", "start": 0}
+    path = make_project([intro(seconds=2), song(1, seconds=3, clip=clip), song(2, seconds=3, clip=clip), outro(seconds=2)])
+    out = tmp_path / "out.mp4"
+
+    assert main([str(path), "-o", str(out)], downloader=FakeDownloader()) == 0
+
+    lines = capsys.readouterr().out
+    assert "下載片段 1 / 2" in lines and "下載片段 2 / 2" in lines
+    assert "合成段落 4 / 4" in lines
+    assert f"完成：{out}" in lines
+
+
+def test_help_mentions_refresh_option(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+
+    assert "--refresh" in capsys.readouterr().out

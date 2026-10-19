@@ -41,6 +41,19 @@ critshowcase critlog-chunithm-b50-video.zip --cookies-from-browser firefox
 
 也可以用 `--cookies cookies.txt` 指定匯出的 cookies 檔。詳見 yt-dlp 的 [FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)。
 
+### 片段快取
+
+下載過的片段會依（影片 ID、開始秒數、長度）留在快取裡。回網頁改了評論、重新匯出後再執行一次，沒改過的片段不會重新下載。
+
+| 系統 | 快取位置 |
+|---|---|
+| Windows | `%LOCALAPPDATA%\critshowcase\clips` |
+| macOS | `~/Library/Caches/critshowcase/clips` |
+| Linux | `$XDG_CACHE_HOME/critshowcase/clips`（預設 `~/.cache/critshowcase/clips`） |
+
+- 想清除快取，直接刪掉這個資料夾即可。
+- 加上 `--refresh` 會略過快取、重新下載所有片段（例如來源影片換過內容時）。
+
 ### 下載失敗的片段
 
 某個片段下載不到（影片被刪、設成私人、地區限制、網路錯誤）時，那一段改成靜態畫面＋靜音，整支影片照樣輸出，結束時列出是哪幾段。
