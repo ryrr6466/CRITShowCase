@@ -1,2 +1,50 @@
 # CRITShowCase
-a b50 video generator/CRITLOG
+
+CRITShowCase（B50 影片）的出片工具。讀 [critlog.me](https://critlog.me) 的 CRITShowCase 頁面匯出的影片專案（zip），在你自己的電腦上下載需要的 YouTube 片段，合成一支 mp4。
+
+每個段落的畫面（曲名、成績、評論、非官方標示）都由網頁畫好，這個工具只把片段塞進畫面的影片框、接上轉場，自己不畫任何文字。
+
+## 安裝
+
+需要：
+
+- Python 3.10 以上
+- [ffmpeg](https://ffmpeg.org/download.html)（`ffmpeg` 與 `ffprobe` 要能在命令列執行）
+
+```bash
+pip install git+https://github.com/ryrr6466/CRITShowCase.git
+```
+
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) 會一起裝好。YouTube 常常改版，下載失敗時先更新 yt-dlp：
+
+```bash
+pip install -U yt-dlp
+```
+
+## 用法
+
+```bash
+critshowcase critlog-chunithm-b50-video.zip
+```
+
+- 輸入可以是網頁匯出的 zip，或解開後的 `project.json`。
+- 成品預設放在輸入檔旁邊（`critlog-chunithm-b50-video.mp4`），用 `-o` 指定其他位置。
+- 輸出 1920×1080、60 fps 的 H.264／AAC mp4。
+
+## 法律提醒
+
+重新上傳別人的譜面影片，可能會被原作者或權利人申訴。這個工具只是讓下載發生在你自己的電腦上，不代表可以任意轉載；
+請先確認來源頻道的轉載規定，或改用自己的手元影片（上傳成不公開影片後，在網頁上貼網址）。
+
+這是非官方工具，與 SEGA 無關。畫面上的非官方標示不能拿掉。
+
+## 開發
+
+```bash
+python -m venv .venv
+.venv/Scripts/python -m pip install -e ".[test]"   # macOS／Linux 是 .venv/bin/python
+.venv/Scripts/python -m mypy src
+.venv/Scripts/python -m pytest
+```
+
+測試會實際呼叫 ffmpeg，不會連上 YouTube。
