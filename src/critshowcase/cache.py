@@ -37,21 +37,37 @@ class CachedDownloader:
         hit = self._find(key)
         if hit and not self.refresh:
             return hit
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            staging = Path(tempfile.mkdtemp(prefix=".partial-", dir=self.cache_dir))
+        except OSError:
+            # 快取資料夾不能用（例如是系統管理員身分建立的）：這次不存快取，照樣下載
+            return self.inner.fetch(clip, seconds, dest)
         # 先下載到快取裡的暫存資料夾，完整下載完才改名成正式檔名；中斷的下載不會被當成快取
-        staging = Path(tempfile.mkdtemp(prefix=".partial-", dir=self.cache_dir))
         try:
             downloaded = self.inner.fetch(clip, seconds, staging)
-            for old in self._matches(key):
-                old.unlink()
-            final = self.cache_dir / f"{key}{downloaded.suffix}"
-            os.replace(downloaded, final)
-            return final
+            try:
+                for old in self._matches(key):
+                    old.unlink()
+                final = self.cache_dir / f"{key}{downloaded.suffix}"
+                os.replace(downloaded, final)
+                return final
+            except OSError:
+                # 舊的快取檔刪不掉或蓋不過：片段改放到這次執行的資料夾
+                return Path(shutil.move(downloaded, Path(dest) / downloaded.name))
         finally:
             shutil.rmtree(staging, ignore_errors=True)
 
     def _find(self, key: str) -> Path | None:
-        return next(iter(self._matches(key)), None)
+        """讀得到的快取檔才算命中：別的使用者或系統管理員身分留下的檔案可能讀不了。"""
+        for path in self._matches(key):
+            try:
+                with path.open("rb") as file:
+                    file.read(1)
+            except OSError:
+                continue
+            return path
+        return None
 
     def _matches(self, key: str) -> list[Path]:
         if not self.cache_dir.is_dir():

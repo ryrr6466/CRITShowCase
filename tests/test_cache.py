@@ -105,3 +105,57 @@ def test_start_seconds_differing_in_the_millisecond_download_again(tmp_path):
     cached.fetch(Clip("dQw4w9WgXcQ", 1234.568), 10, tmp_path)
 
     assert inner.calls == 2
+
+
+@pytest.fixture
+def make_unreadable():
+    """讓目前使用者讀不到檔案（模擬系統管理員身分留下的快取），測試結束後還原。"""
+    import getpass
+    import os
+    import subprocess
+    import sys
+
+    changed = []
+
+    def make(path):
+        if sys.platform == "win32":
+            subprocess.run(["icacls", str(path), "/deny", f"{getpass.getuser()}:(R)"], check=True, capture_output=True)
+        else:
+            if os.geteuid() == 0:
+                pytest.skip("root 讀得到任何檔案")
+            os.chmod(path, 0)
+        changed.append(path)
+        with pytest.raises(PermissionError):
+            Path(path).read_bytes()
+
+    yield make
+    for path in changed:
+        if sys.platform == "win32":
+            subprocess.run(["icacls", str(path), "/reset"], capture_output=True)
+        else:
+            os.chmod(path, 0o644)
+
+
+def test_unreadable_cached_clip_is_downloaded_again(tmp_path, make_unreadable):
+    inner = CountingDownloader()
+    cached = CachedDownloader(inner, tmp_path / "cache")
+    first = cached.fetch(CLIP, 10, tmp_path / "a")
+    make_unreadable(first)
+
+    again = cached.fetch(CLIP, 10, tmp_path / "b")
+
+    assert inner.calls == 2
+    assert again.read_bytes().endswith(b"#2")
+
+
+def test_unwritable_cache_still_returns_the_clip(tmp_path):
+    blocked = tmp_path / "cache"
+    blocked.write_text("這是檔案，不是資料夾")  # 快取資料夾建不起來
+    inner = CountingDownloader()
+    dest = tmp_path / "dest"
+    dest.mkdir()
+
+    path = CachedDownloader(inner, blocked).fetch(CLIP, 10, dest)
+
+    assert path.read_bytes().endswith(b"#1")
+    assert path.parent == dest
