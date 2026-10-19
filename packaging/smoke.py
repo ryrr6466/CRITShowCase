@@ -54,7 +54,8 @@ def run(exe: Path, args: list[str], env: dict[str, str], expect: int = 0) -> Non
 
 
 def check_render(exe: Path, app: Path, project: Path, output: Path, seconds: float, env: dict[str, str]) -> None:
-    run(exe, [str(project), "-o", str(output)], env)
+    # --refresh：不用片段快取，每次都真的下載
+    run(exe, [str(project), "-o", str(output), "--refresh"], env)
     probe = subprocess.run(
         [str(app / "tools" / "ffprobe.exe"), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(output)],
         check=True, capture_output=True, text=True,

@@ -38,6 +38,12 @@ TOOLS = [
         sha256="60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
         files={"/bin/ffmpeg.exe": "ffmpeg.exe", "/bin/ffprobe.exe": "ffprobe.exe"},
     ),
+    # yt-dlp 解 YouTube 驗證題用的 JS 執行環境
+    Tool(
+        url="https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-pc-windows-msvc.zip",
+        sha256="a0c3101b4158d1dfb7d6a78a7bf0f3de80c96bb423c152beec8beb22786f2238",
+        files={"deno.exe": "deno.exe"},
+    ),
 ]
 
 

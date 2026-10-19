@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from critshowcase.cache import CachedDownloader, default_cache_dir
-from critshowcase.download import DownloadBlocked, Downloader, YtDlpDownloader
+from critshowcase.download import DownloadBlocked, Downloader, YtDlpDownloader, update_hint
 from critshowcase.ffmpeg import RenderError, ToolMissing
 from critshowcase.project import ProjectError, load_project
 from critshowcase.render import render
@@ -54,6 +54,9 @@ def main(argv: list[str] | None = None, downloader: Downloader | None = None) ->
         for failure in report.failures:
             print(f"  第 {failure.position} 段  {failure.youtube_id}  {failure.reason}", file=sys.stderr)
         print("可以回 CRITShowCase 頁面換掉這些片段，重新匯出後再執行一次。", file=sys.stderr)
+        if len(report.failures) == sum(1 for segment in project.segments if segment.clip):
+            # 一個都下載不到，多半是 YouTube 改版、yt-dlp 跟不上
+            print(f"所有片段都下載失敗，可能是 YouTube 改版了。{update_hint()}", file=sys.stderr)
         return EXIT_PARTIAL
     return 0
 

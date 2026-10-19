@@ -6,10 +6,12 @@ import sys
 from pathlib import Path
 from typing import Protocol
 
+from critshowcase import tools
 from critshowcase.ffmpeg import ToolMissing
 from critshowcase.project import Clip
 
 YT_DLP_HINT = "找不到 yt-dlp。請執行 pip install -U \"yt-dlp[default]\" 後再試。"
+RELEASES = "https://github.com/ryrr6466/CRITShowCase/releases"
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 SITE_PREFIX = re.compile(r"^\[[\w:]+\] [\w-]+: ")
 
@@ -67,7 +69,7 @@ class YtDlpDownloader:
         try:
             import yt_dlp  # noqa: F401
         except ImportError as error:
-            raise ToolMissing(YT_DLP_HINT) from error
+            raise ToolMissing(tools.incomplete_install("yt-dlp") if tools.is_frozen() else YT_DLP_HINT) from error
         self.verbose = verbose
         self.uses_cookies = bool(cookies_from_browser or cookies)
         self.cookie_file = cookies
@@ -91,8 +93,7 @@ class YtDlpDownloader:
             # 在切點補關鍵格，片段才會剛好從 start 開始
             "force_keyframes_at_cuts": True,
             "merge_output_format": "mkv",
-            # 解 YouTube 驗證題要 JS 執行環境（yt-dlp-ejs）；Deno 或 Node 有一個就好
-            "js_runtimes": {"deno": {}, "node": {}},
+            **_tool_options(),
             "logger": _YtDlpLogger(self.verbose),
             "verbose": self.verbose,
             "noprogress": True,
@@ -112,6 +113,26 @@ class YtDlpDownloader:
         if path is None or not path.is_file():
             raise DownloadError("下載完成但找不到檔案")
         return path
+
+
+def update_hint() -> str:
+    """YouTube 改版時 yt-dlp 要更新；打包版的使用者沒辦法自己更新，要下載新版。"""
+    if tools.is_frozen():
+        return f"請到 {RELEASES} 下載最新版 critshowcase 後再試。"
+    return '請執行 pip install -U "yt-dlp[default]" 更新 yt-dlp 後再試。'
+
+
+def _tool_options() -> dict[str, object]:
+    """打包版的 ffmpeg、Deno 在 exe 旁邊，yt-dlp 自己找不到，要明確告訴它。"""
+    options: dict[str, object] = {}
+    ffmpeg = tools.find("ffmpeg")
+    if ffmpeg:
+        # 給資料夾，yt-dlp 才會在同一處找 ffprobe
+        options["ffmpeg_location"] = str(Path(ffmpeg).parent)
+    # 解 YouTube 驗證題要 JS 執行環境（yt-dlp-ejs）；Deno 或 Node 有一個就好
+    deno = tools.find("deno")
+    options["js_runtimes"] = {"deno": {"path": deno}} if deno else {"deno": {}, "node": {}}
+    return options
 
 
 def _export_browser_cookies(browser: str, target: Path, verbose: bool) -> Path:

@@ -178,3 +178,51 @@ def test_packaged_app_missing_ffmpeg_says_install_is_incomplete(make_project, mo
     err = capsys.readouterr().err
     assert "安裝不完整" in err
     assert "pip" not in err
+
+
+def test_packaged_app_missing_yt_dlp_says_install_is_incomplete(make_project, monkeypatch, tmp_path, capsys):
+    path = make_project([song(1, seconds=3, clip={"youtubeId": "aaaaaaaaaaa", "start": 0})])
+    frozen_app(monkeypatch, tmp_path / "app")
+    monkeypatch.setitem(sys.modules, "yt_dlp", None)
+
+    assert main([str(path), "-o", str(tmp_path / "out.mp4")]) == 1
+
+    err = capsys.readouterr().err
+    assert "安裝不完整" in err and "yt-dlp" in err
+    assert "pip" not in err
+
+
+def test_every_clip_failing_suggests_updating_yt_dlp(make_project, tmp_path, capsys):
+    from conftest import FakeDownloader
+
+    path = make_project([song(1, seconds=3, clip={"youtubeId": "bbbbbbbbbbb", "start": 0})])
+
+    assert main([str(path), "-o", str(tmp_path / "out.mp4")], downloader=FakeDownloader(fail={"bbbbbbbbbbb"})) == 3
+
+    assert 'pip install -U "yt-dlp[default]"' in capsys.readouterr().err
+
+
+def test_packaged_app_every_clip_failing_suggests_downloading_latest_release(make_project, monkeypatch, tmp_path, capsys):
+    from conftest import FakeDownloader
+
+    path = make_project([song(1, seconds=3, clip={"youtubeId": "bbbbbbbbbbb", "start": 0})])
+    frozen_app(monkeypatch, tmp_path / "app")
+
+    assert main([str(path), "-o", str(tmp_path / "out.mp4")], downloader=FakeDownloader(fail={"bbbbbbbbbbb"})) == 3
+
+    err = capsys.readouterr().err
+    assert "下載最新版" in err and "github.com/ryrr6466/CRITShowCase/releases" in err
+    assert "pip" not in err
+
+
+def test_some_clips_failing_does_not_suggest_updating(make_project, tmp_path, capsys):
+    from conftest import FakeDownloader
+
+    path = make_project([
+        song(1, seconds=3, clip={"youtubeId": "aaaaaaaaaaa", "start": 0}),
+        song(2, seconds=3, clip={"youtubeId": "bbbbbbbbbbb", "start": 0}),
+    ])
+
+    assert main([str(path), "-o", str(tmp_path / "out.mp4")], downloader=FakeDownloader(fail={"bbbbbbbbbbb"})) == 3
+
+    assert "yt-dlp" not in capsys.readouterr().err
