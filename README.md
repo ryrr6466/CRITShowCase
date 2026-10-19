@@ -6,6 +6,21 @@ CRITShowCase（B50 影片）的出片工具。讀 [critlog.me](https://critlog.m
 
 ## 安裝
 
+### Windows 免安裝版
+
+不必安裝 Python、ffmpeg 或 Deno，這些都包在裡面了。
+
+1. 到 [GitHub Releases](https://github.com/ryrr6466/CRITShowCase/releases/latest) 下載 `critshowcase-<版本>-windows-x64.zip`（約 140 MB）。
+2. 解壓到任何地方（解開後約 330 MB）。整個 `critshowcase` 資料夾要放在一起，不要只複製 `critshowcase.exe`。
+3. 把網頁匯出的影片專案 zip 拖到 `critshowcase.exe` 上，就會開始出片；結束後視窗會停住，顯示成品位置或出錯原因，按 Enter 關閉。
+
+- 第一次執行時 Windows 可能跳出「Windows 已保護您的電腦」（SmartScreen）：這個 exe 沒有程式碼簽章。按「其他資訊」→「仍要執行」即可。
+- YouTube 常常改版。很多片段突然下載失敗時，到 Releases 下載最新版，解壓後取代舊的資料夾。片段快取不受影響。
+- 下面「用法」的所有選項都能用：在命令列執行 `critshowcase.exe`，例如 `critshowcase.exe 匯出的.zip --cookies-from-browser firefox`。
+- `licenses` 資料夾裡是隨附元件（ffmpeg、Deno、Python 與各套件）的授權文字。ffmpeg 以 GPL 授權，原始碼的取得方式見 `licenses/ffmpeg-SOURCE.txt`。
+
+### 用 pip 安裝（macOS、Linux 與進階使用者）
+
 需要：
 
 - Python 3.10 以上
@@ -22,7 +37,7 @@ pip install git+https://github.com/ryrr6466/CRITShowCase.git
 pip install -U "yt-dlp[default]"
 ```
 
-下載失敗、原因看不懂時，加上 `--verbose` 會印出 yt-dlp 的詳細訊息。
+下載失敗、原因看不懂時，加上 `--verbose` 會印出 yt-dlp 的詳細訊息。回報問題時請附上 `critshowcase --version` 的輸出。
 
 ## 用法
 
@@ -91,3 +106,15 @@ python -m venv .venv
 ```
 
 測試會實際呼叫 ffmpeg，不會連上 YouTube。
+
+### 建置 Windows 免安裝版
+
+```bash
+.venv/Scripts/python -m pip install -e ".[build]"
+.venv/Scripts/python packaging/build.py
+.venv/Scripts/python packaging/smoke.py dist/critshowcase
+```
+
+- `build.py` 下載固定版本的 ffmpeg 與 Deno（網址與 sha256 寫在腳本裡，升級時手動改）、執行 PyInstaller，成品是 `dist/critshowcase-<版本>-windows-x64.zip`。
+- `smoke.py` 在 PATH 上只有 Windows 系統資料夾的環境執行 exe，確認不靠你自己裝的工具也能出片。加上 `--youtube` 會實際下載一個 YouTube 片段（太常執行會被 YouTube 要求登入驗證）。
+- 推 `v<版本>` tag（要跟 `pyproject.toml` 的版本一致）時，GitHub Actions 會建置、做煙霧測試，並把 zip 附到 Release；也可以在 Actions 頁面手動執行，只建置與測試。
