@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import sys
 import tempfile
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from typing import Any
 
 from critshowcase.cache import CachedDownloader, default_cache_dir
 from critshowcase.download import DownloadBlocked, Downloader, YtDlpDownloader
@@ -61,6 +63,7 @@ def _parser() -> argparse.ArgumentParser:
         prog="critshowcase",
         description="把 CRITShowCase（B50 影片）匯出的影片專案合成 mp4。",
     )
+    parser.add_argument("--version", action=_VersionAction, nargs=0, help="印出 critshowcase 與 yt-dlp 的版本後結束")
     parser.add_argument("input", help="網頁匯出的 zip，或解開後的 project.json")
     parser.add_argument("-o", "--output", help="輸出的 mp4 路徑（預設放在輸入檔旁邊）")
     parser.add_argument("--cookies-from-browser", metavar="BROWSER", help="YouTube 要求登入驗證時，使用這個瀏覽器的 cookies（例如 firefox、chrome）")
@@ -72,6 +75,22 @@ def _parser() -> argparse.ArgumentParser:
         help=f"不用快取，所有片段重新下載（快取在 {default_cache_dir()}，可以直接刪除）",
     )
     return parser
+
+
+class _VersionAction(argparse.Action):
+    """回報問題時要附的版本；用到時才查，平常執行不必多花時間。"""
+
+    def __call__(self, parser: argparse.ArgumentParser, namespace: argparse.Namespace, values: Any, option_string: str | None = None) -> None:
+        print(f"critshowcase {_version('critshowcase')}")
+        print(f"yt-dlp {_version('yt-dlp')}")
+        parser.exit()
+
+
+def _version(package: str) -> str:
+    try:
+        return version(package)
+    except PackageNotFoundError:
+        return "（未安裝）"
 
 
 def _default_output(source: Path) -> Path:

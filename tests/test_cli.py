@@ -80,6 +80,18 @@ def test_help_mentions_refresh_option(capsys):
     assert "--refresh" in capsys.readouterr().out
 
 
+def test_version_shows_critshowcase_and_yt_dlp_versions(capsys):
+    from importlib.metadata import version
+
+    with pytest.raises(SystemExit) as exit:
+        main(["--version"])
+
+    assert exit.value.code == 0
+    out = capsys.readouterr().out
+    assert f"critshowcase {version('critshowcase')}" in out
+    assert f"yt-dlp {version('yt-dlp')}" in out
+
+
 def test_youtube_blocking_every_download_stops_without_output(make_project, tmp_path, capsys):
     from conftest import FakeDownloader
 
