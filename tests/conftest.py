@@ -143,6 +143,30 @@ def mean_volume(path: Path, start: float, length: float) -> float:
     raise AssertionError(err)
 
 
+class FakeDownloader:
+    """不連網路：用 ffmpeg 產生純白畫面＋440Hz 聲音的片段，模擬 yt-dlp 下載好的那一段。"""
+
+    def __init__(self, size=(160, 90), length=None, audio=True):
+        self.size = size
+        self.length = length  # None 表示剛好是要求的秒數
+        self.audio = audio
+        self.calls = []
+
+    def fetch(self, clip, seconds, dest):
+        self.calls.append((clip.youtube_id, clip.start, seconds))
+        length = self.length or seconds
+        w, h = self.size
+        path = Path(dest) / f"{clip.youtube_id}-{len(self.calls)}.mp4"
+        args = ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", f"color=white:s={w}x{h}:r=30:d={length}"]
+        if self.audio:
+            args += ["-f", "lavfi", "-i", f"sine=frequency=440:d={length}"]
+        subprocess.run([*args, "-pix_fmt", "yuv420p", "-shortest", str(path)], check=True, capture_output=True)
+        return path
+
+
+CLIP = {"youtubeId": "dQw4w9WgXcQ", "start": 12.0}
+
+
 @pytest.fixture
 def make_project(tmp_path):
     """make_project(segments, ...) → project.json 的路徑。"""

@@ -1,7 +1,7 @@
 """seam：render(project, output, downloader=…) 從頭到尾的合成，用 ffprobe 與抽樣像素檢查成品（spec §8.3）。"""
 import pytest
 
-from conftest import BOX, COLORS, H, W, close, duration, intro, mean_volume, outro, pixel, probe, song
+from conftest import BOX, CLIP, COLORS, H, W, FakeDownloader, close, duration, intro, mean_volume, outro, pixel, probe, song
 from critshowcase.project import load_project
 from critshowcase.render import render
 
@@ -27,3 +27,90 @@ def test_static_project_becomes_mp4_of_frames_in_order(make_project, tmp_path):
     # 有音軌，而且是靜音
     assert streams(out, "audio")
     assert mean_volume(out, 0, 10) < -80
+
+
+BOX_CENTER = (BOX["x"] + BOX["w"] // 2, BOX["y"] + BOX["h"] // 2)
+WHITE, BLACK = (255, 255, 255), (0, 0, 0)
+
+
+def test_clip_plays_inside_video_box_under_frame(make_project, tmp_path):
+    project = load_project(make_project([intro(seconds=2), song(1, seconds=3, clip=CLIP), outro(seconds=2)]))
+    downloader = FakeDownloader(size=(160, 90))
+    out = tmp_path / "out.mp4"
+
+    render(project, out, downloader=downloader)
+
+    # 只要求需要的那一段
+    assert downloader.calls == [("dQw4w9WgXcQ", 12.0, 3)]
+    assert duration(out) == pytest.approx(7, abs=0.15)
+    # 16:9 片段剛好填滿影片框；框外仍是畫面
+    assert close(pixel(out, 3.5, *BOX_CENTER), WHITE)
+    assert close(pixel(out, 3.5, BOX["x"] + 2, BOX["y"] + 2), WHITE)
+    assert close(pixel(out, 3.5, BOX["x"] - 3, BOX_CENTER[1]), COLORS[1])
+    assert close(pixel(out, 3.5, W - 10, H - 10), COLORS[1])
+    # 歌曲段落有片段的聲音，開頭與結尾靜音
+    assert mean_volume(out, 2.3, 2.4) > -40
+    assert mean_volume(out, 0, 1.8) < -80
+    assert mean_volume(out, 5.2, 1.6) < -80
+
+
+@pytest.mark.parametrize(
+    "size, bar_point",
+    [
+        ((160, 120), (BOX["x"] + 5, BOX_CENTER[1])),  # 4:3 → 左右補黑邊
+        ((90, 160), (BOX["x"] + 40, BOX_CENTER[1])),  # 直式（Shorts）→ 左右補更寬的黑邊
+        ((240, 60), (BOX_CENTER[0], BOX["y"] + 5)),  # 4:1 → 上下補黑邊
+    ],
+)
+def test_clip_keeps_aspect_ratio_with_black_bars(make_project, tmp_path, size, bar_point):
+    project = load_project(make_project([song(1, seconds=3, clip=CLIP)]))
+    out = tmp_path / "out.mp4"
+
+    render(project, out, downloader=FakeDownloader(size=size))
+
+    assert close(pixel(out, 1.5, *BOX_CENTER), WHITE)
+    assert close(pixel(out, 1.5, *bar_point), BLACK)
+
+
+def test_short_clip_still_fills_segment_seconds(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=4, clip=CLIP), song(2, seconds=3)]))
+    out = tmp_path / "out.mp4"
+
+    render(project, out, downloader=FakeDownloader(length=1.5))
+
+    assert duration(out) == pytest.approx(7, abs=0.15)
+    # 片段放完後停在最後一格，下一段照時間開始
+    assert close(pixel(out, 3, *BOX_CENTER), WHITE)
+    assert close(pixel(out, 5.5, W - 10, H - 10), COLORS[1])
+
+
+def test_long_clip_is_cut_to_segment_seconds(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=3, clip=CLIP), song(2, seconds=3)]))
+    out = tmp_path / "out.mp4"
+
+    render(project, out, downloader=FakeDownloader(length=8))
+
+    assert duration(out) == pytest.approx(6, abs=0.15)
+    assert mean_volume(out, 3.3, 2.4) < -80
+
+
+def test_clip_without_audio_is_silent(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=3, clip=CLIP)]))
+    out = tmp_path / "out.mp4"
+
+    render(project, out, downloader=FakeDownloader(audio=False))
+
+    assert duration(out) == pytest.approx(3, abs=0.15)
+    assert mean_volume(out, 0, 3) < -80
+
+
+def test_missing_yt_dlp_is_reported(make_project, tmp_path, monkeypatch):
+    import sys
+
+    from critshowcase.ffmpeg import ToolMissing
+
+    monkeypatch.setitem(sys.modules, "yt_dlp", None)
+    project = load_project(make_project([song(1, seconds=3, clip=CLIP)]))
+
+    with pytest.raises(ToolMissing, match="yt-dlp"):
+        render(project, tmp_path / "out.mp4")

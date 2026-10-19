@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from pathlib import Path
 
 
 class ToolMissing(Exception):
@@ -19,6 +20,14 @@ FFMPEG_HINT ="找不到 ffmpeg。請先安裝 ffmpeg（https://ffmpeg.org/downlo
 def require_ffmpeg() -> None:
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         raise ToolMissing(FFMPEG_HINT)
+
+
+def has_audio(path: Path) -> bool:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    return bool(result.stdout.strip())
 
 
 def run(args: list[str]) -> None:
