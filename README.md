@@ -10,16 +10,19 @@ CRITShowCase（B50 影片）的出片工具。讀 [critlog.me](https://critlog.m
 
 - Python 3.10 以上
 - [ffmpeg](https://ffmpeg.org/download.html)（`ffmpeg` 與 `ffprobe` 要能在命令列執行）
+- [Deno](https://deno.com/) 或 [Node.js](https://nodejs.org/)：yt-dlp 要用它解 YouTube 的驗證，沒有的話很多片段會下載失敗
 
 ```bash
 pip install git+https://github.com/ryrr6466/CRITShowCase.git
 ```
 
-[yt-dlp](https://github.com/yt-dlp/yt-dlp) 會一起裝好。YouTube 常常改版，下載失敗時先更新 yt-dlp：
+[yt-dlp](https://github.com/yt-dlp/yt-dlp)（含解 YouTube 驗證用的 yt-dlp-ejs）會一起裝好。YouTube 常常改版，下載失敗時先更新 yt-dlp：
 
 ```bash
-pip install -U yt-dlp
+pip install -U "yt-dlp[default]"
 ```
+
+下載失敗、原因看不懂時，加上 `--verbose` 會印出 yt-dlp 的詳細訊息。
 
 ## 用法
 

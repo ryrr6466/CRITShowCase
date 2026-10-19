@@ -33,7 +33,12 @@ def main(argv: list[str] | None = None, downloader: Downloader | None = None) ->
             project = load_project(source, workdir=Path(tmp) / "project")
             if downloader is None and any(segment.clip for segment in project.segments):
                 downloader = CachedDownloader(
-                    YtDlpDownloader(args.cookies_from_browser, Path(args.cookies) if args.cookies else None, workdir=Path(tmp)),
+                    YtDlpDownloader(
+                        args.cookies_from_browser,
+                        Path(args.cookies) if args.cookies else None,
+                        workdir=Path(tmp),
+                        verbose=args.verbose,
+                    ),
                     default_cache_dir(),
                     refresh=args.refresh,
                 )
@@ -60,6 +65,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("-o", "--output", help="輸出的 mp4 路徑（預設放在輸入檔旁邊）")
     parser.add_argument("--cookies-from-browser", metavar="BROWSER", help="YouTube 要求登入驗證時，使用這個瀏覽器的 cookies（例如 firefox、chrome）")
     parser.add_argument("--cookies", metavar="FILE", help="YouTube 要求登入驗證時，使用匯出的 cookies.txt")
+    parser.add_argument("--verbose", action="store_true", help="印出 yt-dlp 的詳細訊息（下載失敗時除錯用）")
     parser.add_argument(
         "--refresh",
         action="store_true",

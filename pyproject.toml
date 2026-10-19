@@ -9,7 +9,7 @@ description = "CRITShowCase（B50 影片）的出片工具：讀 critlog.me 匯�
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-dependencies = ["yt-dlp"]
+dependencies = ["yt-dlp[default]"]
 
 [project.optional-dependencies]
 test = ["pytest>=8", "mypy>=1.10"]

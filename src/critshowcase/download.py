@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Protocol
 
 from critshowcase.ffmpeg import ToolMissing
 from critshowcase.project import Clip
 
-YT_DLP_HINT = "找不到 yt-dlp。請執行 pip install -U yt-dlp 後再試。"
+YT_DLP_HINT = "找不到 yt-dlp。請執行 pip install -U \"yt-dlp[default]\" 後再試。"
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 SITE_PREFIX = re.compile(r"^\[[\w:]+\] [\w-]+: ")
 
@@ -27,17 +28,37 @@ class Downloader(Protocol):
         ...
 
 
-class _SilentLogger:
-    """錯誤一律透過例外回報，yt-dlp 自己不印任何訊息。"""
+class _YtDlpLogger:
+    """錯誤一律透過例外回報；yt-dlp 自己的訊息只在 --verbose 時印出來（除錯用）。"""
 
-    def debug(self, message: str) -> None: ...
-    def info(self, message: str) -> None: ...
-    def warning(self, message: str) -> None: ...
-    def error(self, message: str) -> None: ...
+    def __init__(self, verbose: bool = False) -> None:
+        self.verbose = verbose
+
+    def _print(self, message: str) -> None:
+        if self.verbose:
+            print(f"[yt-dlp] {_clean(message)}", file=sys.stderr, flush=True)
+
+    def debug(self, message: str) -> None:
+        self._print(message)
+
+    def info(self, message: str) -> None:
+        self._print(message)
+
+    def warning(self, message: str) -> None:
+        self._print(message)
+
+    def error(self, message: str) -> None:
+        self._print(message)
 
 
 class YtDlpDownloader:
-    def __init__(self, cookies_from_browser: str | None = None, cookies: Path | None = None, workdir: Path | None = None) -> None:
+    def __init__(
+        self,
+        cookies_from_browser: str | None = None,
+        cookies: Path | None = None,
+        workdir: Path | None = None,
+        verbose: bool = False,
+    ) -> None:
         """YouTube 要求登入驗證時，用瀏覽器的 cookies（例如 "firefox"）或匯出的 cookies.txt。
 
         瀏覽器的 cookies 在這裡先讀一次、存成 workdir 裡的 cookies.txt（workdir 由呼叫端負責刪除），
@@ -47,14 +68,15 @@ class YtDlpDownloader:
             import yt_dlp  # noqa: F401
         except ImportError as error:
             raise ToolMissing(YT_DLP_HINT) from error
+        self.verbose = verbose
         self.uses_cookies = bool(cookies_from_browser or cookies)
         self.cookie_file = cookies
         if cookies_from_browser:
             if workdir is None:
                 raise ValueError("使用瀏覽器的 cookies 時要給 workdir")
-            self.cookie_file = _export_browser_cookies(cookies_from_browser, Path(workdir) / "cookies.txt")
+            self.cookie_file = _export_browser_cookies(cookies_from_browser, Path(workdir) / "cookies.txt", verbose)
         elif cookies:
-            _check_cookie_file(cookies)
+            _check_cookie_file(cookies, verbose)
 
     def fetch(self, clip: Clip, seconds: float, dest: Path) -> Path:
         from yt_dlp import YoutubeDL
@@ -69,7 +91,10 @@ class YtDlpDownloader:
             # 在切點補關鍵格，片段才會剛好從 start 開始
             "force_keyframes_at_cuts": True,
             "merge_output_format": "mkv",
-            "logger": _SilentLogger(),
+            # 解 YouTube 驗證題要 JS 執行環境（yt-dlp-ejs）；Deno 或 Node 有一個就好
+            "js_runtimes": {"deno": {}, "node": {}},
+            "logger": _YtDlpLogger(self.verbose),
+            "verbose": self.verbose,
             "noprogress": True,
         }
         if self.cookie_file:
@@ -89,12 +114,12 @@ class YtDlpDownloader:
         return path
 
 
-def _export_browser_cookies(browser: str, target: Path) -> Path:
+def _export_browser_cookies(browser: str, target: Path, verbose: bool) -> Path:
     from yt_dlp import YoutubeDL
     from yt_dlp.utils import YoutubeDLError
 
     try:
-        with YoutubeDL({"cookiesfrombrowser": (browser,), "logger": _SilentLogger()}) as ydl:
+        with YoutubeDL({"cookiesfrombrowser": (browser,), "logger": _YtDlpLogger(verbose)}) as ydl:
             target.parent.mkdir(parents=True, exist_ok=True)
             ydl.cookiejar.save(str(target))
     except (YoutubeDLError, OSError, ValueError) as error:
@@ -102,14 +127,14 @@ def _export_browser_cookies(browser: str, target: Path) -> Path:
     return target
 
 
-def _check_cookie_file(path: Path) -> None:
+def _check_cookie_file(path: Path, verbose: bool) -> None:
     from yt_dlp import YoutubeDL
     from yt_dlp.utils import YoutubeDLError
 
     if not Path(path).is_file():
         raise DownloadBlocked(f"找不到 cookies 檔：{path}")
     try:
-        with YoutubeDL({"cookiefile": str(path), "logger": _SilentLogger()}) as ydl:
+        with YoutubeDL({"cookiefile": str(path), "logger": _YtDlpLogger(verbose)}) as ydl:
             ydl.cookiejar
     except (YoutubeDLError, OSError) as error:
         raise DownloadBlocked(f"讀不了 cookies 檔 {path}：{_clean(str(error))}。請確認是 Netscape 格式的 cookies.txt。") from error
