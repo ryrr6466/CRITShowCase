@@ -37,3 +37,17 @@ def test_missing_ffmpeg_exits_with_install_hint(make_project, monkeypatch, capsy
 
     assert main([str(path)]) == 1
     assert "找不到 ffmpeg" in capsys.readouterr().err
+
+
+def test_failed_downloads_are_listed_and_exit_nonzero(make_project, tmp_path, capsys):
+    from conftest import FakeDownloader
+
+    path = make_project([song(1, seconds=3, clip={"youtubeId": "bbbbbbbbbbb", "start": 0}), song(2, seconds=3)])
+    out = tmp_path / "out.mp4"
+
+    code = main([str(path), "-o", str(out)], downloader=FakeDownloader(fail={"bbbbbbbbbbb"}))
+
+    assert code == 3
+    assert out.is_file()
+    err = capsys.readouterr().err
+    assert "第 1 段" in err and "bbbbbbbbbbb" in err and "影片設成私人" in err

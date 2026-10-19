@@ -31,6 +31,27 @@ critshowcase critlog-chunithm-b50-video.zip
 - 成品預設放在輸入檔旁邊（`critlog-chunithm-b50-video.mp4`），用 `-o` 指定其他位置。
 - 輸出 1920×1080、60 fps 的 H.264／AAC mp4。
 
+### YouTube 要求登入驗證時
+
+出現「YouTube 要求登入驗證」時，讓 yt-dlp 使用你瀏覽器的 cookies（瀏覽器要先登入 YouTube）：
+
+```bash
+critshowcase critlog-chunithm-b50-video.zip --cookies-from-browser firefox
+```
+
+也可以用 `--cookies cookies.txt` 指定匯出的 cookies 檔。詳見 yt-dlp 的 [FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)。
+
+### 下載失敗的片段
+
+某個片段下載不到（影片被刪、設成私人、地區限制、網路錯誤）時，那一段改成靜態畫面＋靜音，整支影片照樣輸出，結束時列出是哪幾段。
+回 CRITShowCase 頁面換掉這些片段、重新匯出後再執行一次即可。
+
+| 結束碼 | 意思 |
+|---|---|
+| 0 | 完成 |
+| 1 | 沒有輸出：影片專案不能用、找不到 ffmpeg／yt-dlp，或 ffmpeg 失敗 |
+| 3 | 有輸出，但有片段下載失敗、改成靜態畫面 |
+
 ## 法律提醒
 
 重新上傳別人的譜面影片，可能會被原作者或權利人申訴。這個工具只是讓下載發生在你自己的電腦上，不代表可以任意轉載；

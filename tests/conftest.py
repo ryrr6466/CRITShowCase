@@ -146,14 +146,24 @@ def mean_volume(path: Path, start: float, length: float) -> float:
 class FakeDownloader:
     """不連網路：用 ffmpeg 產生純白畫面＋440Hz 聲音的片段，模擬 yt-dlp 下載好的那一段。"""
 
-    def __init__(self, size=(160, 90), length=None, audio=True):
+    def __init__(self, size=(160, 90), length=None, audio=True, fail=(), corrupt=()):
         self.size = size
         self.length = length  # None 表示剛好是要求的秒數
         self.audio = audio
+        self.fail = set(fail)  # 這些影片 ID 下載失敗
+        self.corrupt = set(corrupt)  # 這些影片 ID 下載到壞掉的檔案
         self.calls = []
 
     def fetch(self, clip, seconds, dest):
+        from critshowcase.download import DownloadError
+
         self.calls.append((clip.youtube_id, clip.start, seconds))
+        if clip.youtube_id in self.fail:
+            raise DownloadError("影片設成私人")
+        if clip.youtube_id in self.corrupt:
+            path = Path(dest) / f"{clip.youtube_id}.mp4"
+            path.write_bytes(b"not a video")
+            return path
         length = self.length or seconds
         w, h = self.size
         path = Path(dest) / f"{clip.youtube_id}-{len(self.calls)}.mp4"

@@ -114,3 +114,51 @@ def test_missing_yt_dlp_is_reported(make_project, tmp_path, monkeypatch):
 
     with pytest.raises(ToolMissing, match="yt-dlp"):
         render(project, tmp_path / "out.mp4")
+
+
+GOOD = {"youtubeId": "aaaaaaaaaaa", "start": 0}
+GONE = {"youtubeId": "bbbbbbbbbbb", "start": 0}
+BROKEN = {"youtubeId": "ccccccccccc", "start": 0}
+
+
+def test_failed_download_becomes_static_segment_and_is_reported(make_project, tmp_path):
+    project = load_project(make_project([intro(seconds=2), song(1, seconds=3, clip=GOOD), song(2, seconds=3, clip=GONE), outro(seconds=2)]))
+    out = tmp_path / "out.mp4"
+
+    report = render(project, out, downloader=FakeDownloader(fail={GONE["youtubeId"]}))
+
+    assert duration(out) == pytest.approx(10, abs=0.15)
+    # 下載成功的照常播放，失敗的那段是靜態畫面＋靜音
+    assert close(pixel(out, 3.5, *BOX_CENTER), WHITE)
+    assert close(pixel(out, 6.5, *BOX_CENTER), BLACK)
+    assert close(pixel(out, 6.5, W - 10, H - 10), COLORS[2])
+    assert mean_volume(out, 5.3, 2.4) < -80
+    assert [(f.position, f.youtube_id, f.reason) for f in report.failures] == [(3, "bbbbbbbbbbb", "影片設成私人")]
+
+
+def test_every_download_failing_still_outputs_whole_video(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=3, clip=GONE), song(2, seconds=3, clip=GONE)]))
+    out = tmp_path / "out.mp4"
+
+    report = render(project, out, downloader=FakeDownloader(fail={GONE["youtubeId"]}))
+
+    assert duration(out) == pytest.approx(6, abs=0.15)
+    assert [f.position for f in report.failures] == [1, 2]
+
+
+def test_unreadable_clip_is_treated_as_failed_download(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=3, clip=BROKEN)]))
+    out = tmp_path / "out.mp4"
+
+    report = render(project, out, downloader=FakeDownloader(corrupt={BROKEN["youtubeId"]}))
+
+    assert duration(out) == pytest.approx(3, abs=0.15)
+    assert [f.youtube_id for f in report.failures] == ["ccccccccccc"]
+
+
+def test_successful_render_reports_no_failures(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=3, clip=GOOD)]))
+
+    report = render(project, tmp_path / "out.mp4", downloader=FakeDownloader())
+
+    assert report.failures == []

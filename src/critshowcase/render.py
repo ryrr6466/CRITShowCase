@@ -7,31 +7,49 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from critshowcase import ffmpeg
-from critshowcase.download import Downloader, YtDlpDownloader
+from critshowcase.download import Downloader, DownloadError, YtDlpDownloader
 from critshowcase.project import Project, Segment
 
 FPS = 60
 SAMPLE_RATE = 48000
 
 
-def render(project: Project, output: Path, downloader: Downloader | None = None, workdir: Path | None = None) -> None:
+@dataclass(frozen=True)
+class Failure:
+    """下載不到、改成靜態畫面的段落。position 是播放順序的第幾段（從 1 開始）。"""
+
+    position: int
+    youtube_id: str
+    reason: str
+
+
+@dataclass
+class RenderReport:
+    failures: list[Failure] = field(default_factory=list)
+
+
+def render(project: Project, output: Path, downloader: Downloader | None = None, workdir: Path | None = None) -> RenderReport:
     ffmpeg.require_ffmpeg()
     if downloader is None and any(s.clip for s in project.segments):
         downloader = YtDlpDownloader()
     output = Path(output)
+    report = RenderReport()
     with tempfile.TemporaryDirectory(prefix="critshowcase-", dir=workdir) as tmp:
         clips_dir = Path(tmp) / "clips"
         clips_dir.mkdir()
         parts = []
         for index, segment in enumerate(project.segments):
             part = Path(tmp) / f"{index:03d}.mkv"
+            failure = None
             if segment.clip and downloader:
-                clip_file = downloader.fetch(segment.clip, segment.seconds, clips_dir)
-                _clip_segment(project, segment, clip_file, part)
-            else:
+                failure = _try_clip_segment(project, segment, downloader, clips_dir, part)
+            if failure:
+                report.failures.append(Failure(index + 1, segment.clip.youtube_id if segment.clip else "", failure))
+            if failure or not segment.clip:
                 _static_segment(project, segment, part)
             parts.append(part)
         # 先寫到暫存檔，完成才換上去，失敗時不留下半成品
@@ -39,6 +57,21 @@ def render(project: Project, output: Path, downloader: Downloader | None = None,
         _join(project, parts, partial)
         output.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(partial, output)
+    return report
+
+
+def _try_clip_segment(project: Project, segment: Segment, downloader: Downloader, clips_dir: Path, part: Path) -> str | None:
+    """成功時回傳 None；下載不到或片段讀不了時回傳原因，由呼叫端改成靜態段落（spec §8.3：不中斷整支影片）。"""
+    assert segment.clip is not None
+    try:
+        clip_file = downloader.fetch(segment.clip, segment.seconds, clips_dir)
+    except DownloadError as error:
+        return str(error)
+    try:
+        _clip_segment(project, segment, clip_file, part)
+    except ffmpeg.RenderError:
+        return "片段檔案無法讀取"
+    return None
 
 
 def _static_segment(project: Project, segment: Segment, part: Path) -> None:
