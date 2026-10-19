@@ -41,6 +41,10 @@ critshowcase critlog-chunithm-b50-video.zip --cookies-from-browser firefox
 
 也可以用 `--cookies cookies.txt` 指定匯出的 cookies 檔。詳見 yt-dlp 的 [FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)。
 
+- Windows 上的 Edge／Chrome 開著時會鎖住 cookie 資料庫，要先完全關閉（包含背景執行的程序）才讀得到；Firefox 沒有這個問題。
+- 瀏覽器的 cookies 只在執行期間存成暫存檔，結束時就刪除。
+- 讀不到 cookies，或用了 cookies 仍然被要求登入驗證時，工具會直接停下來，不會把每個片段都當成下載失敗。
+
 ### 片段快取
 
 下載過的片段會依（影片 ID、開始秒數、長度）留在快取裡。回網頁改了評論、重新匯出後再執行一次，沒改過的片段不會重新下載。
@@ -62,7 +66,7 @@ critshowcase critlog-chunithm-b50-video.zip --cookies-from-browser firefox
 | 結束碼 | 意思 |
 |---|---|
 | 0 | 完成 |
-| 1 | 沒有輸出：影片專案不能用、找不到 ffmpeg／yt-dlp，或 ffmpeg 失敗 |
+| 1 | 沒有輸出：影片專案不能用、找不到 ffmpeg／yt-dlp、讀不到 cookies、YouTube 要求登入驗證，或 ffmpeg 失敗 |
 | 3 | 有輸出，但有片段下載失敗、改成靜態畫面 |
 
 ## 法律提醒

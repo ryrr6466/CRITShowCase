@@ -73,3 +73,18 @@ def test_help_mentions_refresh_option(capsys):
         main(["--help"])
 
     assert "--refresh" in capsys.readouterr().out
+
+
+def test_youtube_blocking_every_download_stops_without_output(make_project, tmp_path, capsys):
+    from conftest import FakeDownloader
+
+    clip = {"youtubeId": "aaaaaaaaaaa", "start": 0}
+    path = make_project([song(1, seconds=3, clip=clip), song(2, seconds=3, clip=clip)])
+    out = tmp_path / "out.mp4"
+    downloader = FakeDownloader(blocked=True)
+
+    assert main([str(path), "-o", str(out)], downloader=downloader) == 1
+
+    assert len(downloader.calls) == 1  # 第一個就停，不會每首都試
+    assert not out.exists()
+    assert "YouTube 要求登入驗證" in capsys.readouterr().err
