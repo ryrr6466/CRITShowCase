@@ -10,7 +10,7 @@ from typing import Any
 
 from critshowcase import tools
 from critshowcase.cache import CachedDownloader, default_cache_dir
-from critshowcase.download import DownloadBlocked, Downloader, YtDlpDownloader, update_hint
+from critshowcase.download import RELEASES, DownloadBlocked, Downloader, YtDlpDownloader
 from critshowcase.ffmpeg import RenderError, ToolMissing
 from critshowcase.project import ProjectError, load_project
 from critshowcase.render import render
@@ -74,9 +74,9 @@ def _run(argv: list[str] | None, downloader: Downloader | None) -> int:
         for failure in report.failures:
             print(f"  第 {failure.position} 段  {failure.youtube_id}  {failure.reason}", file=sys.stderr)
         print("可以回 CRITShowCase 頁面換掉這些片段，重新匯出後再執行一次。", file=sys.stderr)
-        if len(report.failures) == sum(1 for segment in project.segments if segment.clip):
-            # 一個都下載不到，多半是 YouTube 改版、yt-dlp 跟不上
-            print(f"所有片段都下載失敗，可能是 YouTube 改版了。{update_hint()}", file=sys.stderr)
+        if tools.is_frozen() and len(report.failures) == sum(1 for segment in project.segments if segment.clip):
+            # 一個都下載不到，多半是 YouTube 改版、yt-dlp 跟不上；打包版的使用者沒辦法自己更新 yt-dlp
+            print(f"所有片段都下載失敗，可能是 YouTube 改版了。請到 {RELEASES} 下載最新版 critshowcase 後再試。", file=sys.stderr)
         return EXIT_PARTIAL
     return 0
 
@@ -118,7 +118,7 @@ def _wait_for_enter() -> None:
 
 
 class _VersionAction(argparse.Action):
-    """回報問題時要附的版本；用到時才查，平常執行不必多花時間。"""
+    """回報問題時要附的版本，一行一個。內建的 action="version" 會把換行排版成一行。"""
 
     def __call__(self, parser: argparse.ArgumentParser, namespace: argparse.Namespace, values: Any, option_string: str | None = None) -> None:
         print(f"critshowcase {_version('critshowcase')}")

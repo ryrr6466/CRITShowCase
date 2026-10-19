@@ -192,14 +192,16 @@ def test_packaged_app_missing_yt_dlp_says_install_is_incomplete(make_project, mo
     assert "pip" not in err
 
 
-def test_every_clip_failing_suggests_updating_yt_dlp(make_project, tmp_path, capsys):
+def test_pip_install_every_clip_failing_lists_failures_only(make_project, tmp_path, capsys):
     from conftest import FakeDownloader
 
     path = make_project([song(1, seconds=3, clip={"youtubeId": "bbbbbbbbbbb", "start": 0})])
 
     assert main([str(path), "-o", str(tmp_path / "out.mp4")], downloader=FakeDownloader(fail={"bbbbbbbbbbb"})) == 3
 
-    assert 'pip install -U "yt-dlp[default]"' in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "bbbbbbbbbbb" in err
+    assert "下載最新版" not in err
 
 
 def test_packaged_app_every_clip_failing_suggests_downloading_latest_release(make_project, monkeypatch, tmp_path, capsys):

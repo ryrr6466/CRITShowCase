@@ -26,7 +26,7 @@ def require_ffmpeg() -> None:
 def _tool(name: str) -> str:
     path = tools.find(name)
     if path is None:
-        raise ToolMissing(tools.incomplete_install(name) if tools.is_frozen() else FFMPEG_HINT)
+        raise ToolMissing(tools.missing_hint(name, FFMPEG_HINT))
     return path
 
 

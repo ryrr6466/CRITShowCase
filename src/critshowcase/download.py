@@ -12,6 +12,8 @@ from critshowcase.project import Clip
 
 YT_DLP_HINT = "找不到 yt-dlp。請執行 pip install -U \"yt-dlp[default]\" 後再試。"
 RELEASES = "https://github.com/ryrr6466/CRITShowCase/releases"
+# pip 版讓 yt-dlp 自己從 PATH 找 JS 執行環境（解 YouTube 驗證題用）；Deno 或 Node 有一個就好
+JS_RUNTIMES_ON_PATH: dict[str, dict[str, str]] = {"deno": {}, "node": {}}
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 SITE_PREFIX = re.compile(r"^\[[\w:]+\] [\w-]+: ")
 
@@ -69,7 +71,7 @@ class YtDlpDownloader:
         try:
             import yt_dlp  # noqa: F401
         except ImportError as error:
-            raise ToolMissing(tools.incomplete_install("yt-dlp") if tools.is_frozen() else YT_DLP_HINT) from error
+            raise ToolMissing(tools.missing_hint("yt-dlp", YT_DLP_HINT)) from error
         self.verbose = verbose
         self.uses_cookies = bool(cookies_from_browser or cookies)
         self.cookie_file = cookies
@@ -115,23 +117,18 @@ class YtDlpDownloader:
         return path
 
 
-def update_hint() -> str:
-    """YouTube 改版時 yt-dlp 要更新；打包版的使用者沒辦法自己更新，要下載新版。"""
-    if tools.is_frozen():
-        return f"請到 {RELEASES} 下載最新版 critshowcase 後再試。"
-    return '請執行 pip install -U "yt-dlp[default]" 更新 yt-dlp 後再試。'
-
-
 def _tool_options() -> dict[str, object]:
-    """打包版的 ffmpeg、Deno 在 exe 旁邊，yt-dlp 自己找不到，要明確告訴它。"""
-    options: dict[str, object] = {}
+    """打包版的 ffmpeg、Deno 在 exe 旁邊，yt-dlp 自己找不到，要明確告訴它；pip 版交給 yt-dlp 從 PATH 找。"""
+    options: dict[str, object] = {"js_runtimes": JS_RUNTIMES_ON_PATH}
+    if not tools.is_frozen():
+        return options
     ffmpeg = tools.find("ffmpeg")
     if ffmpeg:
         # 給資料夾，yt-dlp 才會在同一處找 ffprobe
         options["ffmpeg_location"] = str(Path(ffmpeg).parent)
-    # 解 YouTube 驗證題要 JS 執行環境（yt-dlp-ejs）；Deno 或 Node 有一個就好
     deno = tools.find("deno")
-    options["js_runtimes"] = {"deno": {"path": deno}} if deno else {"deno": {}, "node": {}}
+    if deno:
+        options["js_runtimes"] = {"deno": {"path": deno}}
     return options
 
 
@@ -140,7 +137,7 @@ def _export_browser_cookies(browser: str, target: Path, verbose: bool) -> Path:
     from yt_dlp.utils import YoutubeDLError
 
     try:
-        with YoutubeDL({"cookiesfrombrowser": (browser,), "logger": _YtDlpLogger(verbose)}) as ydl:
+        with YoutubeDL({"cookiesfrombrowser": (browser,), "logger": _YtDlpLogger(verbose), **_tool_options()}) as ydl:
             target.parent.mkdir(parents=True, exist_ok=True)
             ydl.cookiejar.save(str(target))
     except (YoutubeDLError, OSError, ValueError) as error:
@@ -155,7 +152,7 @@ def _check_cookie_file(path: Path, verbose: bool) -> None:
     if not Path(path).is_file():
         raise DownloadBlocked(f"找不到 cookies 檔：{path}")
     try:
-        with YoutubeDL({"cookiefile": str(path), "logger": _YtDlpLogger(verbose)}) as ydl:
+        with YoutubeDL({"cookiefile": str(path), "logger": _YtDlpLogger(verbose), **_tool_options()}) as ydl:
             ydl.cookiejar
     except (YoutubeDLError, OSError) as error:
         raise DownloadBlocked(f"讀不了 cookies 檔 {path}：{_clean(str(error))}。請確認是 Netscape 格式的 cookies.txt。") from error

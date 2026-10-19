@@ -26,6 +26,8 @@ def find(name: str) -> str | None:
     return shutil.which(name)
 
 
-def incomplete_install(name: str) -> str:
-    """打包版找不到附帶的工具時給使用者的訊息。"""
+def missing_hint(name: str, pip_hint: str) -> str:
+    """找不到工具時給使用者的訊息：pip 版教人安裝；打包版的工具本來就附在裡面，是解壓不完整。"""
+    if not is_frozen():
+        return pip_hint
     return f"critshowcase 安裝不完整，找不到 {name}。請重新解壓下載的 zip，整個資料夾一起使用（不要只複製 critshowcase.exe）。"
