@@ -32,7 +32,8 @@ class CachedDownloader:
         self.refresh = refresh
 
     def fetch(self, clip: Clip, seconds: float, dest: Path) -> Path:
-        key = f"{clip.youtube_id}_{clip.start:g}_{seconds:g}"
+        # 用浮點數的完整表示，差 1 毫秒也是不同的片段
+        key = f"{clip.youtube_id}_{float(clip.start)!r}_{float(seconds)!r}"
         hit = self._find(key)
         if hit and not self.refresh:
             return hit

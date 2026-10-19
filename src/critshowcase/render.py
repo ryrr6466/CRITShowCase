@@ -70,7 +70,7 @@ def render(
                 try:
                     _clip_segment(project, segment, clip_files[index], part)
                 except ffmpeg.RenderError:
-                    failures[index] = Failure(index + 1, segment.clip.youtube_id, "片段檔案無法讀取")
+                    failures[index] = Failure(index + 1, segment.clip.youtube_id, "片段檔案無法讀取（可以加上 --refresh 重新下載）")
             if index not in clip_files or index in failures:
                 _static_segment(project, segment, part)
             parts.append(part)
@@ -168,7 +168,8 @@ def _join(project: Project, parts: list[Path], output: Path) -> None:
         inputs += ["-i", str(part)]
         filters.append(f"[{i}:v]trim=0:{s},setpts=PTS-STARTPTS,settb=AVTB[v{i}]")
         filters.append(f"[{i}:a]apad,atrim=0:{s},asetpts=PTS-STARTPTS[a{i}]")
-    if project.output.transition == "crossfade" and len(parts) > 1:
+    # 交疊 0 秒就是直接切換；xfade／acrossfade 不接受 0 秒
+    if project.output.transition == "crossfade" and project.output.transition_seconds > 0 and len(parts) > 1:
         filters += _crossfade_chain(project)
     else:
         labels = "".join(f"[v{i}][a{i}]" for i in range(len(parts)))

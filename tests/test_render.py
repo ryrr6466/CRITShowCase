@@ -223,3 +223,19 @@ def test_crossfade_blends_clip_audio_into_next_segment(make_project, tmp_path):
     assert duration(out) == pytest.approx(5.5, abs=0.15)
     assert mean_volume(out, 1, 1) > -40
     assert mean_volume(out, 3.2, 2) < -80
+
+
+def test_zero_second_crossfade_behaves_like_cut(make_project, tmp_path):
+    data_segments = [song(1, seconds=3, clip=GOOD), song(2, seconds=3), song(3, seconds=3)]
+    path = make_project(data_segments, transition="crossfade")
+    import json
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["output"]["transitionSeconds"] = 0
+    path.write_text(json.dumps(data), encoding="utf-8")
+    out = tmp_path / "out.mp4"
+
+    render(load_project(path), out, downloader=FakeDownloader())
+
+    assert duration(out) == pytest.approx(9, abs=0.15)
+    assert mean_volume(out, 3.2, 5.6) < -80

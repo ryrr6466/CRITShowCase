@@ -95,3 +95,13 @@ def test_failed_download_is_not_cached(tmp_path):
             cached.fetch(CLIP, 10, tmp_path)
 
     assert failing.calls == 2
+
+
+def test_start_seconds_differing_in_the_millisecond_download_again(tmp_path):
+    inner = CountingDownloader()
+    cached = CachedDownloader(inner, tmp_path / "cache")
+    cached.fetch(Clip("dQw4w9WgXcQ", 1234.567), 10, tmp_path)
+
+    cached.fetch(Clip("dQw4w9WgXcQ", 1234.568), 10, tmp_path)
+
+    assert inner.calls == 2
