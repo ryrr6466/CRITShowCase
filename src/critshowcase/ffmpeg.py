@@ -30,6 +30,17 @@ def has_audio(path: Path) -> bool:
     return bool(result.stdout.strip())
 
 
+def duration(path: Path) -> float | None:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return None
+
+
 def run(args: list[str]) -> None:
     result = subprocess.run(["ffmpeg", "-y", "-v", "error", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:

@@ -16,6 +16,7 @@ from critshowcase.project import Project, Segment
 
 FPS = 60
 SAMPLE_RATE = 48000
+AUDIO_FADE = 0.3
 
 
 @dataclass(frozen=True)
@@ -102,7 +103,13 @@ def _clip_segment(project: Project, segment: Segment, clip_file: Path, part: Pat
         "[b][f]overlay=0:0,format=yuv420p[v]",
     ]
     if audio:
-        filters.append(f"[1:a]aresample={SAMPLE_RATE},aformat=channel_layouts=stereo,apad,atrim=0:{s}[a]")
+        # 片段頭尾固定淡入淡出；片段比段落短時，在片段自己的結尾淡出
+        length = min(s, ffmpeg.duration(clip_file) or s)
+        fade = min(AUDIO_FADE, length / 4)
+        filters.append(
+            f"[1:a]aresample={SAMPLE_RATE},aformat=channel_layouts=stereo,"
+            f"afade=t=in:st=0:d={fade},afade=t=out:st={length - fade}:d={fade},apad,atrim=0:{s}[a]"
+        )
     ffmpeg.run([
         *_background(w, h, s),
         "-t", str(s), "-i", str(clip_file),
@@ -131,15 +138,32 @@ def _intermediate_codecs() -> list[str]:
     return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-r", str(FPS), "-c:a", "pcm_s16le", "-ar", str(SAMPLE_RATE), "-ac", "2"]
 
 
+def _crossfade_chain(project: Project) -> list[str]:
+    """相鄰段落的畫面與聲音交疊 transitionSeconds 秒；交疊不超過最短段落的一半。"""
+    seconds = [segment.seconds for segment in project.segments]
+    overlap = min(project.output.transition_seconds, min(seconds) / 2)
+    filters, video, audio, elapsed = [], "v0", "a0", seconds[0]
+    for i in range(1, len(seconds)):
+        last = i == len(seconds) - 1
+        next_video, next_audio = ("v", "a") if last else (f"vx{i}", f"ax{i}")
+        filters.append(f"[{video}][v{i}]xfade=transition=fade:duration={overlap}:offset={elapsed - overlap}[{next_video}]")
+        filters.append(f"[{audio}][a{i}]acrossfade=d={overlap}[{next_audio}]")
+        video, audio, elapsed = next_video, next_audio, elapsed + seconds[i] - overlap
+    return filters
+
+
 def _join(project: Project, parts: list[Path], output: Path) -> None:
-    inputs, filters, labels = [], [], []
+    inputs, filters = [], []
     for i, (part, segment) in enumerate(zip(parts, project.segments)):
         s = segment.seconds
         inputs += ["-i", str(part)]
-        filters.append(f"[{i}:v]trim=0:{s},setpts=PTS-STARTPTS[v{i}]")
+        filters.append(f"[{i}:v]trim=0:{s},setpts=PTS-STARTPTS,settb=AVTB[v{i}]")
         filters.append(f"[{i}:a]apad,atrim=0:{s},asetpts=PTS-STARTPTS[a{i}]")
-        labels.append(f"[v{i}][a{i}]")
-    filters.append(f"{''.join(labels)}concat=n={len(parts)}:v=1:a=1[v][a]")
+    if project.output.transition == "crossfade" and len(parts) > 1:
+        filters += _crossfade_chain(project)
+    else:
+        labels = "".join(f"[v{i}][a{i}]" for i in range(len(parts)))
+        filters.append(f"{labels}concat=n={len(parts)}:v=1:a=1[v][a]")
     ffmpeg.run([
         *inputs,
         "-filter_complex", ";".join(filters),

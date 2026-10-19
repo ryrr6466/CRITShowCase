@@ -162,3 +162,64 @@ def test_successful_render_reports_no_failures(make_project, tmp_path):
     report = render(project, tmp_path / "out.mp4", downloader=FakeDownloader())
 
     assert report.failures == []
+
+
+def test_crossfade_overlaps_neighbouring_segments(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=3), song(2, seconds=3), song(3, seconds=3)], transition="crossfade"))
+    out = tmp_path / "out.mp4"
+
+    render(project, out)
+
+    # 交疊 0.5 秒 × 2 處
+    assert duration(out) == pytest.approx(8, abs=0.15)
+    # 第一個交疊在 2.5～3.0 秒：中間那格是兩段畫面的混合
+    mixed = pixel(out, 2.75, W - 10, H - 10)
+    assert not close(mixed, COLORS[0], 30) and not close(mixed, COLORS[1], 30)
+    assert close(mixed, tuple((a + b) // 2 for a, b in zip(COLORS[0], COLORS[1])), 50)
+    # 交疊結束後是第二段，第二個交疊（5.0～5.5）之後是第三段
+    assert close(pixel(out, 4, W - 10, H - 10), COLORS[1])
+    assert close(pixel(out, 7, W - 10, H - 10), COLORS[2])
+
+
+def test_cut_switches_without_mixing(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=3), song(2, seconds=3)], transition="cut"))
+    out = tmp_path / "out.mp4"
+
+    render(project, out)
+
+    assert duration(out) == pytest.approx(6, abs=0.15)
+    assert close(pixel(out, 2.9, W - 10, H - 10), COLORS[0])
+    assert close(pixel(out, 3.05, W - 10, H - 10), COLORS[1])
+
+
+def test_single_segment_with_crossfade(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=3, clip=GOOD)], transition="crossfade"))
+    out = tmp_path / "out.mp4"
+
+    render(project, out, downloader=FakeDownloader())
+
+    assert duration(out) == pytest.approx(3, abs=0.15)
+
+
+@pytest.mark.parametrize("length", [None, 1.5])
+def test_clip_audio_fades_in_and_out(make_project, tmp_path, length):
+    project = load_project(make_project([song(1, seconds=3, clip=GOOD)]))
+    out = tmp_path / "out.mp4"
+
+    render(project, out, downloader=FakeDownloader(length=length))
+
+    middle = mean_volume(out, 0.6, 0.3)
+    end = (length or 3)
+    assert mean_volume(out, 0, 0.05) < middle - 10
+    assert mean_volume(out, end - 0.05, 0.05) < middle - 10
+
+
+def test_crossfade_blends_clip_audio_into_next_segment(make_project, tmp_path):
+    project = load_project(make_project([song(1, seconds=3, clip=GOOD), song(2, seconds=3)], transition="crossfade"))
+    out = tmp_path / "out.mp4"
+
+    render(project, out, downloader=FakeDownloader())
+
+    assert duration(out) == pytest.approx(5.5, abs=0.15)
+    assert mean_volume(out, 1, 1) > -40
+    assert mean_volume(out, 3.2, 2) < -80
