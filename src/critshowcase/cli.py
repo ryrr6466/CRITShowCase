@@ -8,6 +8,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
+from critshowcase import tools
 from critshowcase.cache import CachedDownloader, default_cache_dir
 from critshowcase.download import DownloadBlocked, Downloader, YtDlpDownloader, update_hint
 from critshowcase.ffmpeg import RenderError, ToolMissing
@@ -19,11 +20,30 @@ EXIT_ERROR = 1
 EXIT_PARTIAL = 3
 
 
+USAGE_FOR_DRAG_AND_DROP = (
+    "critshowcase：把 CRITShowCase 頁面匯出的影片專案 zip 拖到 critshowcase.exe 上，就會開始出片。\n"
+    "成品會放在 zip 旁邊。進階選項請在命令列執行 critshowcase.exe --help。"
+)
+
+
 def main(argv: list[str] | None = None, downloader: Downloader | None = None) -> int:
     """downloader 給測試注入；沒給時影片專案有片段才建立 yt-dlp 下載器。"""
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="replace")
+    # 拖放或雙擊啟動時，console 是為這次執行開的，結束就會關掉：先停住讓人看結果
+    pause = _owns_console()
+    try:
+        if pause and not (sys.argv[1:] if argv is None else argv):
+            print(USAGE_FOR_DRAG_AND_DROP, file=sys.stderr)
+            return EXIT_ERROR
+        return _run(argv, downloader)
+    finally:
+        if pause:
+            _wait_for_enter()
+
+
+def _run(argv: list[str] | None, downloader: Downloader | None) -> int:
     args = _parser().parse_args(argv)
     source = Path(args.input)
     output = Path(args.output) if args.output else _default_output(source)
@@ -78,6 +98,23 @@ def _parser() -> argparse.ArgumentParser:
         help=f"不用快取，所有片段重新下載（快取在 {default_cache_dir()}，可以直接刪除）",
     )
     return parser
+
+
+def _owns_console() -> bool:
+    """打包版從檔案總管啟動（拖放、雙擊）：console 只有自己在用。從 cmd／PowerShell 執行時不算。"""
+    if not tools.is_frozen() or sys.platform != "win32" or sys.stdin is None or not sys.stdin.isatty():
+        return False
+    import ctypes
+
+    processes = (ctypes.c_uint32 * 2)()
+    return bool(ctypes.windll.kernel32.GetConsoleProcessList(processes, 2) == 1)
+
+
+def _wait_for_enter() -> None:
+    try:
+        input("\n按 Enter 關閉視窗…")
+    except (EOFError, KeyboardInterrupt):
+        pass
 
 
 class _VersionAction(argparse.Action):
