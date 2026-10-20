@@ -3,22 +3,14 @@ from __future__ import annotations
 
 import argparse
 import sys
-import tempfile
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
-from critshowcase import tools
-from critshowcase.cache import CachedDownloader, default_cache_dir
-from critshowcase.download import RELEASES, DownloadBlocked, Downloader, YtDlpDownloader
-from critshowcase.ffmpeg import RenderError, ToolMissing
-from critshowcase.project import ProjectError, load_project
-from critshowcase.render import render
-
-EXIT_ERROR = 1
-# 影片輸出了，但有片段下載失敗、改成靜態畫面
-EXIT_PARTIAL = 3
-
+from critshowcase import package_version, tools
+from critshowcase.cache import default_cache_dir
+from critshowcase.download import Downloader
+from critshowcase.job import EXIT_ERROR, run_job
+from critshowcase.render import Progress
 
 USAGE_FOR_DRAG_AND_DROP = (
     "critshowcase：把 CRITShowCase 頁面匯出的影片專案 zip 拖到 critshowcase.exe 上，就會開始出片。\n"
@@ -45,40 +37,34 @@ def main(argv: list[str] | None = None, downloader: Downloader | None = None) ->
 
 def _run(argv: list[str] | None, downloader: Downloader | None) -> int:
     args = _parser().parse_args(argv)
-    source = Path(args.input)
-    output = Path(args.output) if args.output else _default_output(source)
-    if not source.is_file():
-        print(f"critshowcase：找不到檔案 {source}", file=sys.stderr)
-        return EXIT_ERROR
-    try:
-        with tempfile.TemporaryDirectory(prefix="critshowcase-") as tmp:
-            project = load_project(source, workdir=Path(tmp) / "project")
-            if downloader is None and any(segment.clip for segment in project.segments):
-                downloader = CachedDownloader(
-                    YtDlpDownloader(
-                        args.cookies_from_browser,
-                        Path(args.cookies) if args.cookies else None,
-                        workdir=Path(tmp),
-                        verbose=args.verbose,
-                    ),
-                    default_cache_dir(),
-                    refresh=args.refresh,
-                )
-            report = render(project, output, downloader=downloader, workdir=Path(tmp), progress=lambda message: print(message, flush=True))
-    except (ProjectError, ToolMissing, RenderError, DownloadBlocked) as error:
-        print(f"critshowcase：{error}", file=sys.stderr)
-        return EXIT_ERROR
-    print(f"完成：{output}")
-    if report.failures:
-        print(f"\n有 {len(report.failures)} 個片段下載失敗，這些段落改成靜態畫面：", file=sys.stderr)
-        for failure in report.failures:
+    result = run_job(
+        Path(args.input),
+        Path(args.output) if args.output else None,
+        cookies_from_browser=args.cookies_from_browser,
+        cookies=Path(args.cookies) if args.cookies else None,
+        refresh=args.refresh,
+        verbose=args.verbose,
+        downloader=downloader,
+        progress=_print_progress,
+    )
+    if result.error is not None:
+        print(f"critshowcase：{result.error}", file=sys.stderr)
+        return result.exit_code
+    print(f"完成：{result.output}")
+    if result.failures:
+        print(f"\n有 {len(result.failures)} 個片段下載失敗，這些段落改成靜態畫面：", file=sys.stderr)
+        for failure in result.failures:
             print(f"  第 {failure.position} 段  {failure.youtube_id}  {failure.reason}", file=sys.stderr)
         print("可以回 CRITShowCase 頁面換掉這些片段，重新匯出後再執行一次。", file=sys.stderr)
-        if tools.is_frozen() and len(report.failures) == sum(1 for segment in project.segments if segment.clip):
-            # 一個都下載不到，多半是 YouTube 改版、yt-dlp 跟不上；打包版的使用者沒辦法自己更新 yt-dlp
-            print(f"所有片段都下載失敗，可能是 YouTube 改版了。請到 {RELEASES} 下載最新版 critshowcase 後再試。", file=sys.stderr)
-        return EXIT_PARTIAL
-    return 0
+        if result.update_hint:
+            print(result.update_hint, file=sys.stderr)
+    return result.exit_code
+
+
+def _print_progress(event: Progress) -> None:
+    # 完成的訊息等結果出來再印
+    if event.stage != "done":
+        print(event.message, flush=True)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -121,17 +107,6 @@ class _VersionAction(argparse.Action):
     """回報問題時要附的版本，一行一個。內建的 action="version" 會把換行排版成一行。"""
 
     def __call__(self, parser: argparse.ArgumentParser, namespace: argparse.Namespace, values: Any, option_string: str | None = None) -> None:
-        print(f"critshowcase {_version('critshowcase')}")
-        print(f"yt-dlp {_version('yt-dlp')}")
+        print(f"critshowcase {package_version('critshowcase')}")
+        print(f"yt-dlp {package_version('yt-dlp')}")
         parser.exit()
-
-
-def _version(package: str) -> str:
-    try:
-        return version(package)
-    except PackageNotFoundError:
-        return "（未安裝）"
-
-
-def _default_output(source: Path) -> Path:
-    return source.with_suffix(".mp4")

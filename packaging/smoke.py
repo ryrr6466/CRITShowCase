@@ -27,6 +27,7 @@ def main() -> None:
 
     run(exe, ["--version"], env)
     run(exe, ["--help"], env)
+    check_gui(args.app / "critshowcase-gui.exe", env)
     with tempfile.TemporaryDirectory() as tmp:
         check_render(exe, args.app, SMOKE / "static.zip", Path(tmp) / "static.mp4", 7, env)
         if args.youtube:
@@ -51,6 +52,20 @@ def run(exe: Path, args: list[str], env: dict[str, str], expect: int = 0) -> Non
     result = subprocess.run([str(exe), *args], env=env, stdin=subprocess.DEVNULL)
     if result.returncode != expect:
         sys.exit(f"結束碼 {result.returncode}，應為 {expect}")
+
+
+def check_gui(exe: Path, env: dict[str, str]) -> None:
+    """GUI 沒有 console：設了 CRITSHOWCASE_GUI_SMOKE 時視窗開起來一秒就自己關掉。
+
+    exe 出錯時 PyInstaller 會跳出對話框一直停著，所以用逾時判斷，不能只等它結束。
+    """
+    print("$ critshowcase-gui（開視窗後自動關閉）", flush=True)
+    try:
+        result = subprocess.run([str(exe)], env={**env, "CRITSHOWCASE_GUI_SMOKE": "1"}, timeout=60)
+    except subprocess.TimeoutExpired:
+        sys.exit("critshowcase-gui 60 秒內沒有自己關閉（可能跳出了錯誤對話框）")
+    if result.returncode != 0:
+        sys.exit(f"critshowcase-gui 結束碼 {result.returncode}，應為 0")
 
 
 def check_render(exe: Path, app: Path, project: Path, output: Path, seconds: float, env: dict[str, str]) -> None:

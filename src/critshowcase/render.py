@@ -10,6 +10,7 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from critshowcase import ffmpeg
 from critshowcase.download import Downloader, DownloadError, YtDlpDownloader
@@ -29,6 +30,22 @@ class Failure:
     reason: str
 
 
+@dataclass(frozen=True)
+class Progress:
+    """進度事件，在每一步開始時送出；整支完成時再送一個 done == steps 的事件。
+
+    stage 是 "download"（下載片段）、"compose"（合成段落）、"join"（輸出 mp4）或 "done"；
+    current／total 是這個階段的第幾個／共幾個。steps 是整體的步數（片段數＋段落數＋1），done 是已經完成幾步。
+    """
+
+    stage: Literal["download", "compose", "join", "done"]
+    current: int
+    total: int
+    done: int
+    steps: int
+    message: str
+
+
 @dataclass
 class RenderReport:
     failures: list[Failure] = field(default_factory=list)
@@ -39,11 +56,11 @@ def render(
     output: Path,
     downloader: Downloader | None = None,
     workdir: Path | None = None,
-    progress: Callable[[str], None] | None = None,
+    progress: Callable[[Progress], None] | None = None,
 ) -> RenderReport:
     """下載片段 → 逐段合成 → 串接輸出。下載不到或讀不了的片段改成靜態段落，不中斷整支影片（spec §8.3）。"""
     ffmpeg.require_ffmpeg()
-    report_progress = progress or (lambda message: None)
+    report_progress = progress or (lambda event: None)
     if downloader is None and any(s.clip for s in project.segments):
         downloader = YtDlpDownloader()
     output = Path(output)
@@ -54,9 +71,10 @@ def render(
 
         clip_files: dict[int, Path] = {}
         wanted = [(i, s) for i, s in enumerate(project.segments) if s.clip]
+        steps = len(wanted) + len(project.segments) + 1
         for n, (index, segment) in enumerate(wanted, start=1):
             assert segment.clip is not None and downloader is not None
-            report_progress(f"下載片段 {n} / {len(wanted)}：{segment.clip.youtube_id}")
+            report_progress(Progress("download", n, len(wanted), n - 1, steps, f"下載片段 {n} / {len(wanted)}：{segment.clip.youtube_id}"))
             try:
                 clip_files[index] = downloader.fetch(segment.clip, segment.seconds, clips_dir)
             except DownloadError as error:
@@ -64,7 +82,7 @@ def render(
 
         parts = []
         for index, segment in enumerate(project.segments):
-            report_progress(f"合成段落 {index + 1} / {len(project.segments)}")
+            report_progress(Progress("compose", index + 1, len(project.segments), len(wanted) + index, steps, f"合成段落 {index + 1} / {len(project.segments)}"))
             part = Path(tmp) / f"{index:03d}.mkv"
             if index in clip_files and segment.clip:
                 try:
@@ -75,12 +93,13 @@ def render(
                 _static_segment(project, segment, part)
             parts.append(part)
 
-        report_progress("輸出 mp4")
+        report_progress(Progress("join", 1, 1, steps - 1, steps, "輸出 mp4"))
         # 先寫到暫存檔，完成才換上去，失敗時不留下半成品
         partial = Path(tmp) / "output.mp4"
         _join(project, parts, partial)
         output.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(partial, output)
+    report_progress(Progress("done", 1, 1, steps, steps, f"完成：{output}"))
     return RenderReport([failures[i] for i in sorted(failures)])
 
 

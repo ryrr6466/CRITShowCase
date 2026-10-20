@@ -137,6 +137,7 @@ def write_licenses(dest: Path, archives: list[Path]) -> None:
             (dest / name).write_text(text, encoding="utf-8")
     # PyInstaller 隨附的 Python 執行環境；Windows 版的 LICENSE.txt 也列了 OpenSSL、libffi、SQLite 等
     shutil.copyfile(Path(sys.base_prefix) / "LICENSE.txt", dest / "python-LICENSE.txt")
+    write_tcl_tk_licenses(dest)
     packages = dest / "python-packages"
     for name in bundled_distributions():
         dist = distribution(name)
@@ -152,6 +153,27 @@ def write_licenses(dest: Path, archives: list[Path]) -> None:
         if not files:
             summary = dist.metadata.get("License-Expression") or dist.metadata.get("License") or "（套件沒有附授權資訊）"
             (folder / "LICENSE.txt").write_text(summary, encoding="utf-8")
+
+
+def write_tcl_tk_licenses(dest: Path) -> None:
+    """GUI 用的 Tcl／Tk 要保留著作權聲明，Python 的 LICENSE.txt 沒有列。
+
+    Python 3.14 起 Tcl／Tk 的 library 包成 tcl\\libtcl*.zip、libtk*.zip；更早的版本是資料夾。
+    """
+    tcl = Path(sys.base_prefix) / "tcl"
+    for name in ("tcl", "tk"):
+        text = None
+        for archive in tcl.glob(f"lib{name}*.zip"):
+            with zipfile.ZipFile(archive) as z:
+                member = next((m for m in z.namelist() if m.endswith("license.terms")), None)
+                if member:
+                    text = z.read(member)
+        for folder in tcl.glob(f"{name}[0-9]*"):
+            if (folder / "license.terms").is_file():
+                text = (folder / "license.terms").read_bytes()
+        if text is None:
+            sys.exit(f"找不到 {name} 的 license.terms（{tcl}）")
+        (dest / f"{name}-license.terms.txt").write_bytes(text)
 
 
 def bundled_distributions() -> list[str]:
