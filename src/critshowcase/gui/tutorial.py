@@ -11,6 +11,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from tkinter import font, ttk
 
+from critshowcase.gui import theme
+from critshowcase.gui.theme import px
+
 ROBOTS = "https://www.youtube.com/robots.txt"
 WIKI = "https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies"
 
@@ -82,10 +85,11 @@ class TutorialWindow:
     def __init__(self, parent: tk.Misc, on_import: Callable[[tk.Misc], None]) -> None:
         self.window = tk.Toplevel(parent)
         self.window.title("怎麼匯出 YouTube cookies")
-        self.window.geometry("640x620")
-        self.window.minsize(480, 400)
+        self.window.geometry(f"{px(660)}x{px(640)}")
+        self.window.minsize(px(480), px(400))
+        self.window.configure(background=theme.BG)
         self.on_import = on_import
-        notebook = ttk.Notebook(self.window, padding=8)
+        notebook = ttk.Notebook(self.window, padding=px(12))
         notebook.pack(fill="both", expand=True)
         for browser in BROWSERS:
             notebook.add(self._page(notebook, browser), text=browser.tab)
@@ -99,34 +103,60 @@ class TutorialWindow:
         return bool(self.window.winfo_exists())
 
     def _page(self, parent: ttk.Notebook, browser: Browser) -> ttk.Frame:
-        page = ttk.Frame(parent)
+        page = ttk.Frame(parent, style="Card.TFrame", padding=1)
         page.columnconfigure(0, weight=1)
         page.rowconfigure(0, weight=1)
         base = font.nametofont("TkDefaultFont")
-        text = tk.Text(page, wrap="word", padx=12, pady=12, relief="flat", font=base, cursor="arrow", spacing1=2, spacing3=6)
+        text = tk.Text(
+            page,
+            wrap="word",
+            padx=px(20),
+            pady=px(16),
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            background=theme.CARD,
+            foreground=theme.TEXT,
+            font=base,
+            cursor="arrow",
+            spacing1=px(2),
+            spacing3=px(6),
+        )
         text.grid(row=0, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(page, orient="vertical", command=text.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         text.configure(yscrollcommand=scrollbar.set)
         bold = base.copy()
         bold.configure(weight="bold")
-        text.tag_configure("bold", font=bold)
-        text.tag_configure("warning", foreground="#b00020")
-        text.tag_configure("note", foreground="gray30")
-        text.tag_configure("link", foreground="#0b57d0", underline=True)
+        heading = base.copy()
+        heading.configure(weight="bold", size=base.actual("size") + 2)
+        text.tag_configure("heading", font=heading, spacing3=px(10))
+        text.tag_configure("number", font=bold, foreground=theme.ACCENT)
+        # 步驟換行時對齊編號後面的文字
+        text.tag_configure("step", lmargin2=px(22))
+        text.tag_configure("substep", lmargin1=px(22), lmargin2=px(22))
+        text.tag_configure("warning", foreground=theme.DANGER)
+        text.tag_configure("note", foreground=theme.MUTED)
+        text.tag_configure("link", foreground=theme.LINK, underline=True)
         text.tag_bind("link", "<Enter>", lambda event: text.configure(cursor="hand2"))
         text.tag_bind("link", "<Leave>", lambda event: text.configure(cursor="arrow"))
 
-        text.insert("end", "YouTube 要求登入驗證時，用瀏覽器擴充功能匯出 cookies.txt，再匯入 CRITShowCase。\n\n")
+        text.insert("end", "YouTube 要求登入驗證時，用瀏覽器擴充功能匯出 cookies.txt，再匯入 CRITShowCase。\n", "heading")
         text.insert("end", COMMON["why"] + "\n\n", "note")
         if browser.warning:
             text.insert("end", "⚠ " + browser.warning + "\n\n", "warning")
         for number, step in enumerate(steps(browser), start=1):
-            text.insert("end", f"{number}. ", "bold")
+            start = text.index("end-1c")
+            text.insert("end", f"{number}. ", "number")
             self._insert_with_links(text, step)
             text.insert("end", "\n")
+            text.tag_add("step", start, "end-1c")
+            # 步驟裡換行的段落（例如 Chrome、Edge 各一行）整段縮排
+            first, last = int(start.split(".")[0]), int(text.index("end-1c").split(".")[0]) - 1
+            for line in range(first + 1, last + 1):
+                text.tag_add("substep", f"{line}.0", f"{line}.end")
         button = ttk.Button(text, text="匯入 cookies.txt…", command=lambda: self.on_import(self.window))
-        text.window_create("end", window=button, padx=24)
+        text.window_create("end", window=button, padx=px(22))
         text.insert("end", "\n\n")
         for key in ("account", "secret", "expired"):
             text.insert("end", "・" + COMMON[key] + "\n", "note")

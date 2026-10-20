@@ -27,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     except ImportError:
         _error(NO_TKINTER)
         return 1
+    _dpi_aware()
     try:
         root = tkinter.Tk()
     except tkinter.TclError as error:
@@ -39,6 +40,18 @@ def main(argv: list[str] | None = None) -> int:
         root.after(SMOKE_MS, root.destroy)
     root.mainloop()
     return 0
+
+
+def _dpi_aware() -> None:
+    """Windows 縮放 125%、150% 時，沒宣告 DPI aware 的視窗會被整個放大，字是糊的；要在建立視窗前宣告。"""
+    if sys.platform != "win32":
+        return
+    import ctypes
+
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)  # 1：依主螢幕的 DPI
+    except (AttributeError, OSError):  # Windows 8 以前沒有 shcore
+        pass
 
 
 def _error(message: str) -> None:
