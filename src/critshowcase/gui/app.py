@@ -11,6 +11,7 @@ import sys
 import threading
 import tkinter as tk
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from types import TracebackType
@@ -18,6 +19,8 @@ from types import TracebackType
 from critshowcase import package_version
 from critshowcase.cookies import CookieError, CookieStore
 from critshowcase.download import RELEASES
+from critshowcase.gui import theme
+from critshowcase.gui.theme import px
 from critshowcase.gui.tutorial import TutorialWindow
 from critshowcase.job import JobResult, default_output, run_job
 from critshowcase.render import Progress
@@ -25,7 +28,6 @@ from critshowcase.render import Progress
 TITLE = "CRITShowCase 出片工具"
 POLL_MS = 100
 DOTS_MS = 500
-PAD = 8
 
 
 class App:
@@ -42,10 +44,14 @@ class App:
         self.source = tk.StringVar()
         self.output = tk.StringVar()
         self.refresh = tk.BooleanVar()
-        self.status = tk.StringVar(value="選擇網頁匯出的影片專案後，按「開始出片」。")
+        self.status = tk.StringVar(value="選擇影片專案後，按「開始出片」。")
+        self.percent = tk.StringVar()
         self.cookie_status = tk.StringVar()
+        theme.apply(root)
+        theme.set_icon(root)
         root.title(TITLE)
-        root.minsize(600, 520)
+        root.geometry(f"{px(720)}x{px(700)}")
+        root.minsize(px(600), px(600))
         root.protocol("WM_DELETE_WINDOW", self._close)
         root.report_callback_exception = self._report_error  # type: ignore[method-assign]
         self._build()
@@ -56,65 +62,113 @@ class App:
     # ---- 版面 ----
 
     def _build(self) -> None:
-        frame = ttk.Frame(self.root, padding=PAD * 2)
-        frame.grid(sticky="nsew")
         self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
+        self.root.rowconfigure(1, weight=1)
+        self._build_header()
+        frame = ttk.Frame(self.root, padding=(px(20), px(16), px(20), px(14)))
+        frame.grid(row=1, column=0, sticky="nsew")
         frame.columnconfigure(0, weight=1)
 
-        project = ttk.LabelFrame(frame, text="影片專案（網頁匯出的 zip 或 project.json）", padding=PAD)
-        project.grid(row=0, column=0, sticky="ew")
-        project.columnconfigure(0, weight=1)
-        ttk.Entry(project, textvariable=self.source, state="readonly").grid(row=0, column=0, sticky="ew")
-        self.choose_source = ttk.Button(project, text="選擇…", command=self._choose_source)
-        self.choose_source.grid(row=0, column=1, padx=(PAD, 0))
+        files = self._card(frame, 0, "檔案")
+        files.columnconfigure(1, weight=1)
+        ttk.Label(files, text="影片專案", style="Card.TLabel").grid(row=0, column=0, sticky="w", padx=(0, px(12)))
+        ttk.Entry(files, textvariable=self.source, state="readonly").grid(row=0, column=1, sticky="ew")
+        self.choose_source = ttk.Button(files, text="選擇…", command=self._choose_source)
+        self.choose_source.grid(row=0, column=2, padx=(px(8), 0))
+        ttk.Label(files, text="網頁匯出的 zip 或 project.json；也可以把 zip 拖到程式圖示上打開。", style="CardMuted.TLabel").grid(
+            row=1, column=1, columnspan=2, sticky="w", pady=(px(4), px(10))
+        )
+        ttk.Label(files, text="輸出 mp4", style="Card.TLabel").grid(row=2, column=0, sticky="w", padx=(0, px(12)))
+        ttk.Entry(files, textvariable=self.output, state="readonly").grid(row=2, column=1, sticky="ew")
+        self.choose_output = ttk.Button(files, text="另存為…", command=self._choose_output)
+        self.choose_output.grid(row=2, column=2, padx=(px(8), 0))
 
-        output = ttk.LabelFrame(frame, text="輸出 mp4", padding=PAD)
-        output.grid(row=1, column=0, sticky="ew", pady=(PAD, 0))
-        output.columnconfigure(0, weight=1)
-        ttk.Entry(output, textvariable=self.output, state="readonly").grid(row=0, column=0, sticky="ew")
-        self.choose_output = ttk.Button(output, text="另存為…", command=self._choose_output)
-        self.choose_output.grid(row=0, column=1, padx=(PAD, 0))
-
-        cookies = ttk.LabelFrame(frame, text="YouTube cookies", padding=PAD)
-        cookies.grid(row=2, column=0, sticky="ew", pady=(PAD, 0))
-        cookies.columnconfigure(2, weight=1)
-        ttk.Label(cookies, textvariable=self.cookie_status).grid(row=0, column=0, columnspan=3, sticky="w")
+        cookies = self._card(frame, 1, "YouTube cookies")
+        cookies.columnconfigure(3, weight=1)
+        status = ttk.Frame(cookies, style="Card.TFrame", borderwidth=0)
+        status.grid(row=0, column=0, columnspan=4, sticky="w")
+        self.cookie_dot = ttk.Label(status, text="●", style="Off.TLabel")
+        self.cookie_dot.grid(row=0, column=0, padx=(0, px(6)))
+        ttk.Label(status, textvariable=self.cookie_status, style="Card.TLabel").grid(row=0, column=1, sticky="w")
         self.import_cookies = ttk.Button(cookies, text="匯入 cookies.txt…", command=self._import_cookies)
-        self.import_cookies.grid(row=1, column=0, sticky="w", pady=(PAD, 0))
+        self.import_cookies.grid(row=1, column=0, sticky="w", pady=(px(10), 0))
         self.clear_cookies = ttk.Button(cookies, text="清除", command=self._clear_cookies)
-        self.clear_cookies.grid(row=1, column=1, padx=(PAD, 0), pady=(PAD, 0))
-        ttk.Button(cookies, text="怎麼匯出 cookies？", command=self._show_tutorial).grid(row=1, column=2, padx=(PAD, 0), pady=(PAD, 0))
+        self.clear_cookies.grid(row=1, column=1, padx=(px(8), 0), pady=(px(10), 0))
+        ttk.Button(cookies, text="怎麼匯出 cookies？", style="Link.TButton", command=self._show_tutorial).grid(
+            row=1, column=3, sticky="e", pady=(px(10), 0)
+        )
 
-        self.refresh_box = ttk.Checkbutton(frame, text="不用快取，所有片段重新下載", variable=self.refresh)
-        self.refresh_box.grid(row=3, column=0, sticky="w", pady=(PAD, 0))
+        actions = ttk.Frame(frame)
+        actions.grid(row=2, column=0, sticky="ew", pady=(px(14), 0))
+        actions.columnconfigure(0, weight=1)
+        self.refresh_box = ttk.Checkbutton(actions, text="不用快取，所有片段重新下載", variable=self.refresh)
+        self.refresh_box.grid(row=0, column=0, sticky="w")
+        self.start = ttk.Button(actions, text="開始出片", style="Accent.TButton", command=self._start)
+        self.start.grid(row=0, column=1, sticky="e")
 
-        self.start = ttk.Button(frame, text="開始出片", command=self._start)
-        self.start.grid(row=4, column=0, sticky="ew", pady=(PAD, 0), ipady=4)
+        progress = ttk.Frame(frame)
+        progress.grid(row=3, column=0, sticky="ew", pady=(px(16), 0))
+        progress.columnconfigure(0, weight=1)
+        ttk.Label(progress, textvariable=self.status, style="Status.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(progress, textvariable=self.percent, style="Percent.TLabel").grid(row=0, column=1, sticky="e")
+        self.progress = ttk.Progressbar(progress, mode="determinate", maximum=1, style="Accent.Horizontal.TProgressbar")
+        self.progress.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(px(6), 0))
 
-        self.progress = ttk.Progressbar(frame, mode="determinate", maximum=1)
-        self.progress.grid(row=5, column=0, sticky="ew", pady=(PAD * 2, 0))
-        ttk.Label(frame, textvariable=self.status).grid(row=6, column=0, sticky="w", pady=(4, 0))
-
-        log = ttk.Frame(frame)
-        log.grid(row=7, column=0, sticky="nsew", pady=(PAD, 0))
-        frame.rowconfigure(7, weight=1)
+        log = ttk.Frame(frame, style="Card.TFrame", padding=1)
+        log.grid(row=4, column=0, sticky="nsew", pady=(px(12), 0))
+        frame.rowconfigure(4, weight=1)
         log.columnconfigure(0, weight=1)
         log.rowconfigure(0, weight=1)
-        self.log = tk.Text(log, height=10, wrap="word", state="disabled", font="TkDefaultFont")
+        self.log = tk.Text(
+            log,
+            height=8,
+            wrap="word",
+            state="disabled",
+            font="CritSmall",
+            background=theme.CARD,
+            foreground=theme.TEXT,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            padx=px(10),
+            pady=px(8),
+            spacing3=px(2),
+        )
         self.log.grid(row=0, column=0, sticky="nsew")
+        self.log.tag_configure("time", foreground=theme.MUTED)
+        self.log.tag_configure("error", foreground=theme.DANGER)
+        self.log.tag_configure("success", foreground=theme.SUCCESS)
         scrollbar = ttk.Scrollbar(log, orient="vertical", command=self.log.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.log.configure(yscrollcommand=scrollbar.set)
 
         bottom = ttk.Frame(frame)
-        bottom.grid(row=8, column=0, sticky="ew", pady=(PAD, 0))
+        bottom.grid(row=5, column=0, sticky="ew", pady=(px(10), 0))
         bottom.columnconfigure(0, weight=1)
-        versions = f"critshowcase {package_version('critshowcase')}　yt-dlp {package_version('yt-dlp')}"
-        ttk.Label(bottom, text=versions, foreground="gray").grid(row=0, column=0, sticky="w")
-        ttk.Button(bottom, text="複製紀錄", command=self._copy_log).grid(row=0, column=1, padx=(PAD, 0))
+        versions = f"critshowcase {package_version('critshowcase')}　·　yt-dlp {package_version('yt-dlp')}"
+        ttk.Label(bottom, text=versions, style="Muted.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Button(bottom, text="複製紀錄", command=self._copy_log).grid(row=0, column=1, padx=(px(8), 0))
         self.open_folder = ttk.Button(bottom, text="開啟資料夾", command=self._open_folder)
-        self.open_folder.grid(row=0, column=2, padx=(PAD, 0))
+        self.open_folder.grid(row=0, column=2, padx=(px(8), 0))
+
+    def _build_header(self) -> None:
+        header = ttk.Frame(self.root, style="Header.TFrame", padding=(px(20), px(16), px(20), px(16)))
+        header.grid(row=0, column=0, sticky="ew")
+        ttk.Label(header, image=theme.wordmark(self.root), style="Title.TLabel").grid(row=0, column=0, rowspan=2, sticky="w")
+        ttk.Frame(header, style="Divider.TFrame", width=1).grid(row=0, column=1, rowspan=2, sticky="ns", padx=px(16))
+        ttk.Label(header, text="ShowCase 出片工具", style="Title.TLabel").grid(row=0, column=2, sticky="sw")
+        ttk.Label(header, text="把網頁匯出的 B50 影片專案合成 mp4", style="Subtitle.TLabel").grid(row=1, column=2, sticky="nw")
+        theme.trail(self.root, px(3)).grid(row=0, column=0, sticky="sew")
+
+    def _card(self, parent: ttk.Frame, row: int, title: str) -> ttk.Frame:
+        """白底卡片：標題在上，回傳放內容的 frame。"""
+        card = ttk.Frame(parent, style="Card.TFrame", padding=(px(16), px(12), px(16), px(14)))
+        card.grid(row=row, column=0, sticky="ew", pady=(0 if row == 0 else px(12), 0))
+        card.columnconfigure(0, weight=1)
+        ttk.Label(card, text=title, style="CardHeading.TLabel").grid(row=0, column=0, sticky="w", pady=(0, px(10)))
+        body = ttk.Frame(card, style="Card.TFrame", borderwidth=0)
+        body.grid(row=1, column=0, sticky="ew")
+        return body
 
     def _update_controls(self) -> None:
         busy = self.worker is not None
@@ -127,6 +181,7 @@ class App:
             self.cookie_status.set(f"已匯入（{imported.imported_at:%Y-%m-%d %H:%M}），出片時會使用。")
         else:
             self.cookie_status.set("未匯入。YouTube 要求登入驗證時才需要。")
+        self.cookie_dot.configure(style="Ok.TLabel" if imported else "Off.TLabel")
         self.start.configure(state="normal" if not busy and self.source.get() else "disabled")
         self.open_folder.configure(state="normal" if not busy and self.last_output else "disabled")
 
@@ -218,6 +273,7 @@ class App:
         source, output = Path(self.source.get()), Path(self.output.get())
         self.last_output = None
         self.progress.configure(value=0, maximum=1)
+        self.percent.set("0%")
         self._log(f"開始出片：{source}")
         self.status.set("準備中…")
         imported = self.cookie_store.current()
@@ -250,6 +306,7 @@ class App:
 
     def _show_progress(self, event: Progress) -> None:
         self.progress.configure(maximum=event.steps, value=event.done)
+        self.percent.set(f"{event.done * 100 // event.steps}%")
         if event.stage == "done":
             return
         self.status.set(event.message)
@@ -271,7 +328,8 @@ class App:
             # 被要求登入驗證時，原本的訊息教的是命令列選項；GUI 改說匯入 cookies
             message = self._blocked_message(result.error, self.used_cookies) if result.blocked else result.error
             self.status.set("沒有輸出")
-            self._log(f"沒有輸出：{message}")
+            self.percent.set("")
+            self._log(f"沒有輸出：{message}", "error")
             self._update_controls()
             if not result.blocked:
                 messagebox.showerror(TITLE, message, parent=self.root)
@@ -286,16 +344,17 @@ class App:
         assert result.output is not None
         self.last_output = result.output
         self.progress.configure(value=self.progress.cget("maximum"))
-        self.status.set(f"完成：{result.output}")
-        self._log(f"完成：{result.output}")
+        self.percent.set("100%")
+        self.status.set(f"完成：{result.output.name}")
+        self._log(f"完成：{result.output}", "success")
         self._update_controls()
         if not result.failures:
             messagebox.showinfo(TITLE, f"完成！\n{result.output}", parent=self.root)
             return
         lines = [f"第 {f.position} 段  {f.youtube_id}  {f.reason}" for f in result.failures]
-        self._log(f"有 {len(result.failures)} 個片段下載失敗，這些段落改成靜態畫面：")
+        self._log(f"有 {len(result.failures)} 個片段下載失敗，這些段落改成靜態畫面：", "error")
         for line in lines:
-            self._log(f"  {line}")
+            self._log(f"  {line}", "error")
         summary = (
             f"影片輸出了，但有 {len(result.failures)} 個片段下載失敗，這些段落改成靜態畫面：\n\n"
             + "\n".join(lines)
@@ -310,9 +369,11 @@ class App:
 
     # ---- 其他 ----
 
-    def _log(self, line: str) -> None:
+    def _log(self, line: str, tag: str | None = None) -> None:
+        """tag："error" 或 "success"，換顏色。"""
         self.log.configure(state="normal")
-        self.log.insert("end", line + "\n")
+        self.log.insert("end", f"{datetime.now():%H:%M:%S}  ", "time")
+        self.log.insert("end", line + "\n", tag or ())
         self.log.see("end")
         self.log.configure(state="disabled")
 
@@ -332,7 +393,7 @@ class App:
 
     def _report_error(self, kind: type[BaseException], error: BaseException, traceback: TracebackType | None) -> None:
         """按鈕的處理出錯時（例如匯入 cookies 時資料夾沒有寫入權限）：Tk 預設印到 stderr，打包版的 GUI 看不到。"""
-        self._log(f"發生錯誤：{error!r}")
+        self._log(f"發生錯誤：{error!r}", "error")
         messagebox.showerror(TITLE, f"發生錯誤：{error}", parent=self.root)
 
     def _close(self) -> None:

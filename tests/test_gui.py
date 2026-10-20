@@ -36,6 +36,19 @@ def test_main_window_builds(root, make_project, tmp_path):
     root.update_idletasks()
 
 
+def test_theme_fonts_outlive_apply(root):
+    """樣式用名字指定字型；Font 物件被回收時 Tk 會刪掉字型，畫面就退回預設字型。"""
+    import gc
+    from tkinter import font
+
+    from critshowcase.gui import theme
+
+    theme.apply(root)
+    gc.collect()
+
+    assert "CritTitle" in font.names(root)
+
+
 def test_without_tkinter_explains_and_exits_with_error(monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "tkinter", None)
 
