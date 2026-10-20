@@ -18,6 +18,9 @@ build = ["pyinstaller>=6"]
 [project.scripts]
 critshowcase = "critshowcase.cli:main"
 
+[project.gui-scripts]
+critshowcase-gui = "critshowcase.gui:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

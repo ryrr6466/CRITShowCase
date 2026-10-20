@@ -3,11 +3,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
-from critshowcase import tools
+from critshowcase import package_version, tools
 from critshowcase.cache import default_cache_dir
 from critshowcase.download import Downloader
 from critshowcase.job import EXIT_ERROR, run_job
@@ -108,13 +107,6 @@ class _VersionAction(argparse.Action):
     """回報問題時要附的版本，一行一個。內建的 action="version" 會把換行排版成一行。"""
 
     def __call__(self, parser: argparse.ArgumentParser, namespace: argparse.Namespace, values: Any, option_string: str | None = None) -> None:
-        print(f"critshowcase {_version('critshowcase')}")
-        print(f"yt-dlp {_version('yt-dlp')}")
+        print(f"critshowcase {package_version('critshowcase')}")
+        print(f"yt-dlp {package_version('yt-dlp')}")
         parser.exit()
-
-
-def _version(package: str) -> str:
-    try:
-        return version(package)
-    except PackageNotFoundError:
-        return "（未安裝）"
