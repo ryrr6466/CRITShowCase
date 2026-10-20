@@ -4,8 +4,13 @@ tkinter 在這裡才載入：有些 Python（例如 Linux 套件管理員裝的�
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+
+# 免安裝版的煙霧測試用：視窗開起來後自己關掉，確認 exe 帶齊了 Tcl／Tk、建得出視窗
+SMOKE_ENV = "CRITSHOWCASE_GUI_SMOKE"
+SMOKE_MS = 1000
 
 NO_TKINTER = (
     "critshowcase-gui：這個 Python 沒有 tkinter，打不開視窗。\n"
@@ -30,6 +35,8 @@ def main(argv: list[str] | None = None) -> int:
     from critshowcase.gui.app import App
 
     App(root, source=Path(args[0]) if args else None)
+    if os.environ.get(SMOKE_ENV):
+        root.after(SMOKE_MS, root.destroy)
     root.mainloop()
     return 0
 

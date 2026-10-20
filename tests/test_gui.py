@@ -6,16 +6,26 @@ import pytest
 from critshowcase import gui
 
 
-@pytest.fixture
-def root():
+def new_tk():
     tkinter = pytest.importorskip("tkinter")
     try:
-        window = tkinter.Tk()
+        return tkinter.Tk()
     except tkinter.TclError as error:  # 沒有顯示器的環境
         pytest.skip(f"Tk 不能用：{error}")
+
+
+@pytest.fixture
+def root():
+    window = new_tk()
     window.withdraw()
     yield window
     window.destroy()
+
+
+@pytest.fixture
+def tk_available():
+    """main() 自己建主視窗；mainloop 要等所有主視窗都關掉，這裡探完就關。"""
+    new_tk().destroy()
 
 
 def test_main_window_builds(root, make_project, tmp_path):
@@ -39,3 +49,10 @@ def test_cookie_tutorial_window_builds(root):
 
     TutorialWindow(root, on_import=lambda parent: None)
     root.update_idletasks()
+
+
+def test_smoke_switch_opens_the_window_and_closes_it(tk_available, monkeypatch):
+    """免安裝版的煙霧測試用：設了 CRITSHOWCASE_GUI_SMOKE 時視窗開起來後自己關掉，結束碼 0。"""
+    monkeypatch.setenv("CRITSHOWCASE_GUI_SMOKE", "1")
+
+    assert gui.main([]) == 0
