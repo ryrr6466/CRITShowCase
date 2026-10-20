@@ -10,6 +10,7 @@ import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from critshowcase import ffmpeg
 from critshowcase.download import Downloader, DownloadError, YtDlpDownloader
@@ -37,7 +38,7 @@ class Progress:
     current／total 是這個階段的第幾個／共幾個。steps 是整體的步數（片段數＋段落數＋1），done 是已經完成幾步。
     """
 
-    stage: str
+    stage: Literal["download", "compose", "join", "done"]
     current: int
     total: int
     done: int

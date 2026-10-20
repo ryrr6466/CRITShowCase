@@ -83,3 +83,15 @@ def test_imported_copy_is_used_even_after_the_exported_file_is_deleted(store, tm
     downloader = YtDlpDownloader(cookies=store.current().path)
 
     assert downloader.cookie_file == imported.path
+
+
+def test_import_time_survives_yt_dlp_saving_rotated_cookies(store, tmp_path):
+    """yt-dlp 每次結束都會把 cookies 寫回檔案；顯示的匯入時間不能跟著變。"""
+    import os
+    import time
+
+    imported = store.import_file(write(tmp_path / "cookies.txt", YOUTUBE_COOKIES))
+    later = time.time() + 3600
+    os.utime(imported.path, (later, later))
+
+    assert store.current().imported_at == imported.imported_at

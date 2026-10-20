@@ -13,6 +13,7 @@ import tkinter as tk
 import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+from types import TracebackType
 
 from critshowcase import package_version
 from critshowcase.cookies import CookieError, CookieStore
@@ -34,7 +35,8 @@ class App:
         self.events: queue.Queue[Progress | JobResult] = queue.Queue()
         self.worker: threading.Thread | None = None
         self.last_output: Path | None = None
-        self.joining = False
+        # 輸出 mp4 時讓狀態文字動著的 after() 排程
+        self.dots_job: str | None = None
         self.used_cookies = False
         self.tutorial: TutorialWindow | None = None
         self.source = tk.StringVar()
@@ -45,6 +47,7 @@ class App:
         root.title(TITLE)
         root.minsize(600, 520)
         root.protocol("WM_DELETE_WINDOW", self._close)
+        root.report_callback_exception = self._report_error  # type: ignore[method-assign]
         self._build()
         if source:
             self._set_source(Path(source))
@@ -115,9 +118,9 @@ class App:
 
     def _update_controls(self) -> None:
         busy = self.worker is not None
-        idle = "disabled" if busy else "normal"
+        state = "disabled" if busy else "normal"
         for widget in (self.choose_source, self.choose_output, self.refresh_box, self.import_cookies):
-            widget.configure(state=idle)
+            widget.configure(state=state)
         imported = self.cookie_store.current()
         self.clear_cookies.configure(state="normal" if not busy and imported else "disabled")
         if imported:
@@ -252,28 +255,29 @@ class App:
         self.status.set(event.message)
         self._log(event.message)
         # 輸出 mp4 只有一步但可能很久：不假裝知道百分比，讓狀態文字動著，看得出還在跑
-        if event.stage == "join" and not self.joining:
-            self.joining = True
+        if event.stage == "join" and self.dots_job is None:
             self._animate_dots(0)
 
     def _animate_dots(self, count: int) -> None:
-        if not self.joining:
-            return
         self.status.set("輸出 mp4" + "." * (count % 4))
-        self.root.after(DOTS_MS, self._animate_dots, count + 1)
+        self.dots_job = self.root.after(DOTS_MS, self._animate_dots, count + 1)
 
     def _finish(self, result: JobResult) -> None:
         self.worker = None
-        self.joining = False
+        if self.dots_job is not None:
+            self.root.after_cancel(self.dots_job)
+            self.dots_job = None
         if result.error is not None:
+            # 被要求登入驗證時，原本的訊息教的是命令列選項；GUI 改說匯入 cookies
+            message = self._blocked_message(result.error, self.used_cookies) if result.blocked else result.error
             self.status.set("沒有輸出")
-            self._log(f"沒有輸出：{result.error}")
+            self._log(f"沒有輸出：{message}")
             self._update_controls()
             if not result.blocked:
-                messagebox.showerror(TITLE, result.error, parent=self.root)
+                messagebox.showerror(TITLE, message, parent=self.root)
             elif messagebox.askyesno(
                 TITLE,
-                self._blocked_message(result.error, self.used_cookies) + "\n\n要打開匯出 cookies 的教學嗎？",
+                message + "\n\n要打開匯出 cookies 的教學嗎？",
                 icon="error",
                 parent=self.root,
             ):
@@ -325,6 +329,11 @@ class App:
             subprocess.Popen(["open", "-R", str(self.last_output)])
         else:
             subprocess.Popen(["xdg-open", str(self.last_output.parent)])
+
+    def _report_error(self, kind: type[BaseException], error: BaseException, traceback: TracebackType | None) -> None:
+        """按鈕的處理出錯時（例如匯入 cookies 時資料夾沒有寫入權限）：Tk 預設印到 stderr，打包版的 GUI 看不到。"""
+        self._log(f"發生錯誤：{error!r}")
+        messagebox.showerror(TITLE, f"發生錯誤：{error}", parent=self.root)
 
     def _close(self) -> None:
         if self.worker is not None and not messagebox.askyesno(

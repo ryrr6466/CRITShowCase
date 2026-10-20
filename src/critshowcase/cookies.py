@@ -15,6 +15,8 @@ from pathlib import Path
 from critshowcase.cache import default_cache_dir
 
 FILENAME = "cookies.txt"
+# 匯入時間另外記：yt-dlp 每次結束都會把換過的 cookies 寫回 cookies.txt，修改時間不等於匯入時間
+IMPORTED_AT = "cookies-imported-at.txt"
 
 
 class CookieError(Exception):
@@ -40,13 +42,21 @@ class CookieStore:
     def path(self) -> Path:
         return self.folder / FILENAME
 
+    @property
+    def imported_at_path(self) -> Path:
+        return self.folder / IMPORTED_AT
+
     def current(self) -> ImportedCookies | None:
-        """匯入時間就是那份檔案的修改時間（匯入時重新寫入）。"""
         try:
             modified = self.path.stat().st_mtime
         except OSError:
             return None
-        return ImportedCookies(self.path, datetime.fromtimestamp(modified))
+        try:
+            imported_at = datetime.fromisoformat(self.imported_at_path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            # 記錄不見或壞掉：退而用檔案的修改時間
+            imported_at = datetime.fromtimestamp(modified)
+        return ImportedCookies(self.path, imported_at)
 
     def import_file(self, source: Path) -> ImportedCookies:
         """先確認是含 YouTube cookies 的 Netscape 格式檔案，才取代舊的；不能用的檔案不會蓋掉原本匯入的。"""
@@ -60,12 +70,14 @@ class CookieStore:
             os.replace(staging, self.path)
         finally:
             Path(staging).unlink(missing_ok=True)
+        self.imported_at_path.write_text(datetime.now().isoformat(timespec="seconds"), encoding="utf-8")
         current = self.current()
         assert current is not None
         return current
 
     def clear(self) -> None:
         self.path.unlink(missing_ok=True)
+        self.imported_at_path.unlink(missing_ok=True)
 
 
 def _check(source: Path) -> None:

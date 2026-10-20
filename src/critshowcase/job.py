@@ -1,6 +1,7 @@
 """出片工作：載入影片專案 → 下載片段 → 合成 mp4。CLI 與 GUI 共用，自己不印任何東西。
 
 打包版的 GUI 沒有 console，sys.stdout／sys.stderr 可能是 None；訊息一律放在結果與進度事件裡，由介面決定怎麼顯示。
+唯一的例外是 verbose：yt-dlp 的詳細訊息直接印到 stderr，給命令列除錯用，GUI 不會開。
 """
 from __future__ import annotations
 
