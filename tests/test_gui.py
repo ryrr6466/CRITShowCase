@@ -32,3 +32,10 @@ def test_without_tkinter_explains_and_exits_with_error(monkeypatch, capsys):
     assert gui.main([]) == 1
 
     assert "tkinter" in capsys.readouterr().err
+
+
+def test_cookie_tutorial_window_builds(root):
+    from critshowcase.gui.tutorial import TutorialWindow
+
+    TutorialWindow(root, on_import=lambda parent: None)
+    root.update_idletasks()

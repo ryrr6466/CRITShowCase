@@ -17,6 +17,7 @@ from tkinter import filedialog, messagebox, ttk
 from critshowcase import package_version
 from critshowcase.cookies import CookieError, CookieStore
 from critshowcase.download import RELEASES
+from critshowcase.gui.tutorial import TutorialWindow
 from critshowcase.job import JobResult, default_output, run_job
 from critshowcase.render import Progress
 
@@ -35,6 +36,7 @@ class App:
         self.last_output: Path | None = None
         self.joining = False
         self.used_cookies = False
+        self.tutorial: TutorialWindow | None = None
         self.source = tk.StringVar()
         self.output = tk.StringVar()
         self.refresh = tk.BooleanVar()
@@ -73,12 +75,13 @@ class App:
 
         cookies = ttk.LabelFrame(frame, text="YouTube cookies", padding=PAD)
         cookies.grid(row=2, column=0, sticky="ew", pady=(PAD, 0))
-        cookies.columnconfigure(0, weight=1)
-        ttk.Label(cookies, textvariable=self.cookie_status, wraplength=320).grid(row=0, column=0, sticky="w")
+        cookies.columnconfigure(2, weight=1)
+        ttk.Label(cookies, textvariable=self.cookie_status).grid(row=0, column=0, columnspan=3, sticky="w")
         self.import_cookies = ttk.Button(cookies, text="匯入 cookies.txt…", command=self._import_cookies)
-        self.import_cookies.grid(row=0, column=1, padx=(PAD, 0))
+        self.import_cookies.grid(row=1, column=0, sticky="w", pady=(PAD, 0))
         self.clear_cookies = ttk.Button(cookies, text="清除", command=self._clear_cookies)
-        self.clear_cookies.grid(row=0, column=2, padx=(PAD, 0))
+        self.clear_cookies.grid(row=1, column=1, padx=(PAD, 0), pady=(PAD, 0))
+        ttk.Button(cookies, text="怎麼匯出 cookies？", command=self._show_tutorial).grid(row=1, column=2, padx=(PAD, 0), pady=(PAD, 0))
 
         self.refresh_box = ttk.Checkbutton(frame, text="不用快取，所有片段重新下載", variable=self.refresh)
         self.refresh_box.grid(row=3, column=0, sticky="w", pady=(PAD, 0))
@@ -95,7 +98,7 @@ class App:
         frame.rowconfigure(7, weight=1)
         log.columnconfigure(0, weight=1)
         log.rowconfigure(0, weight=1)
-        self.log = tk.Text(log, height=10, wrap="word", state="disabled")
+        self.log = tk.Text(log, height=10, wrap="word", state="disabled", font="TkDefaultFont")
         self.log.grid(row=0, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(log, orient="vertical", command=self.log.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
@@ -155,9 +158,15 @@ class App:
 
     # ---- cookies ----
 
-    def _import_cookies(self) -> None:
+    def _import_cookies(self, parent: tk.Misc | None = None) -> None:
+        """parent：從教學視窗按匯入時，對話框跳在教學視窗上面。"""
+        parent = parent or self.root
+        # 教學視窗裡也有匯入按鈕；出片中不換 cookies
+        if self.worker is not None:
+            messagebox.showinfo(TITLE, "出片中不能匯入 cookies，請等這次出片結束。", parent=parent)
+            return
         path = filedialog.askopenfilename(
-            parent=self.root,
+            parent=parent,
             title="選擇匯出的 cookies.txt",
             filetypes=[("cookies.txt", "*.txt"), ("所有檔案", "*.*")],
         )
@@ -166,7 +175,7 @@ class App:
         try:
             self.cookie_store.import_file(Path(path))
         except CookieError as error:
-            messagebox.showerror(TITLE, f"沒有匯入：{error}", parent=self.root)
+            messagebox.showerror(TITLE, f"沒有匯入：{error}", parent=parent)
             return
         self._update_controls()
         self._log("已匯入 cookies。")
@@ -174,7 +183,7 @@ class App:
             TITLE,
             "已匯入 cookies，之後出片都會使用。\n\n"
             f"原本的 {Path(path).name} 可以刪掉了：cookies 等於你的 YouTube 登入狀態，不要留在下載資料夾或傳給別人。",
-            parent=self.root,
+            parent=parent,
         )
 
     def _clear_cookies(self) -> None:
@@ -182,6 +191,11 @@ class App:
             self.cookie_store.clear()
             self._update_controls()
             self._log("已清除 cookies。")
+
+    def _show_tutorial(self) -> None:
+        if self.tutorial is None or not self.tutorial.exists():
+            self.tutorial = TutorialWindow(self.root, on_import=self._import_cookies)
+        self.tutorial.lift()
 
     def _blocked_message(self, error: str, used_cookies: bool) -> str:
         if used_cookies:
@@ -255,8 +269,15 @@ class App:
             self.status.set("沒有輸出")
             self._log(f"沒有輸出：{result.error}")
             self._update_controls()
-            message = self._blocked_message(result.error, self.used_cookies) if result.blocked else result.error
-            messagebox.showerror(TITLE, message, parent=self.root)
+            if not result.blocked:
+                messagebox.showerror(TITLE, result.error, parent=self.root)
+            elif messagebox.askyesno(
+                TITLE,
+                self._blocked_message(result.error, self.used_cookies) + "\n\n要打開匯出 cookies 的教學嗎？",
+                icon="error",
+                parent=self.root,
+            ):
+                self._show_tutorial()
             return
         assert result.output is not None
         self.last_output = result.output
