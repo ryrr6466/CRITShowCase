@@ -18,10 +18,11 @@ def root():
     window.destroy()
 
 
-def test_main_window_builds(root, make_project):
+def test_main_window_builds(root, make_project, tmp_path):
+    from critshowcase.cookies import CookieStore
     from critshowcase.gui.app import App
 
-    App(root, source=make_project([]))
+    App(root, source=make_project([]), cookie_store=CookieStore(tmp_path / "userdata"))
     root.update_idletasks()
 
 

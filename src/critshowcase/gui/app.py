@@ -15,6 +15,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from critshowcase import package_version
+from critshowcase.cookies import CookieError, CookieStore
 from critshowcase.download import RELEASES
 from critshowcase.job import JobResult, default_output, run_job
 from critshowcase.render import Progress
@@ -26,16 +27,19 @@ PAD = 8
 
 
 class App:
-    def __init__(self, root: tk.Tk, source: Path | None = None) -> None:
+    def __init__(self, root: tk.Tk, source: Path | None = None, cookie_store: CookieStore | None = None) -> None:
         self.root = root
+        self.cookie_store = cookie_store or CookieStore()
         self.events: queue.Queue[Progress | JobResult] = queue.Queue()
         self.worker: threading.Thread | None = None
         self.last_output: Path | None = None
         self.joining = False
+        self.used_cookies = False
         self.source = tk.StringVar()
         self.output = tk.StringVar()
         self.refresh = tk.BooleanVar()
         self.status = tk.StringVar(value="選擇網頁匯出的影片專案後，按「開始出片」。")
+        self.cookie_status = tk.StringVar()
         root.title(TITLE)
         root.minsize(600, 520)
         root.protocol("WM_DELETE_WINDOW", self._close)
@@ -66,6 +70,15 @@ class App:
         ttk.Entry(output, textvariable=self.output, state="readonly").grid(row=0, column=0, sticky="ew")
         self.choose_output = ttk.Button(output, text="另存為…", command=self._choose_output)
         self.choose_output.grid(row=0, column=1, padx=(PAD, 0))
+
+        cookies = ttk.LabelFrame(frame, text="YouTube cookies", padding=PAD)
+        cookies.grid(row=2, column=0, sticky="ew", pady=(PAD, 0))
+        cookies.columnconfigure(0, weight=1)
+        ttk.Label(cookies, textvariable=self.cookie_status, wraplength=320).grid(row=0, column=0, sticky="w")
+        self.import_cookies = ttk.Button(cookies, text="匯入 cookies.txt…", command=self._import_cookies)
+        self.import_cookies.grid(row=0, column=1, padx=(PAD, 0))
+        self.clear_cookies = ttk.Button(cookies, text="清除", command=self._clear_cookies)
+        self.clear_cookies.grid(row=0, column=2, padx=(PAD, 0))
 
         self.refresh_box = ttk.Checkbutton(frame, text="不用快取，所有片段重新下載", variable=self.refresh)
         self.refresh_box.grid(row=3, column=0, sticky="w", pady=(PAD, 0))
@@ -100,8 +113,14 @@ class App:
     def _update_controls(self) -> None:
         busy = self.worker is not None
         idle = "disabled" if busy else "normal"
-        for widget in (self.choose_source, self.choose_output, self.refresh_box):
+        for widget in (self.choose_source, self.choose_output, self.refresh_box, self.import_cookies):
             widget.configure(state=idle)
+        imported = self.cookie_store.current()
+        self.clear_cookies.configure(state="normal" if not busy and imported else "disabled")
+        if imported:
+            self.cookie_status.set(f"已匯入（{imported.imported_at:%Y-%m-%d %H:%M}），出片時會使用。")
+        else:
+            self.cookie_status.set("未匯入。YouTube 要求登入驗證時才需要。")
         self.start.configure(state="normal" if not busy and self.source.get() else "disabled")
         self.open_folder.configure(state="normal" if not busy and self.last_output else "disabled")
 
@@ -134,6 +153,48 @@ class App:
         if path:
             self.output.set(path)
 
+    # ---- cookies ----
+
+    def _import_cookies(self) -> None:
+        path = filedialog.askopenfilename(
+            parent=self.root,
+            title="選擇匯出的 cookies.txt",
+            filetypes=[("cookies.txt", "*.txt"), ("所有檔案", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            self.cookie_store.import_file(Path(path))
+        except CookieError as error:
+            messagebox.showerror(TITLE, f"沒有匯入：{error}", parent=self.root)
+            return
+        self._update_controls()
+        self._log("已匯入 cookies。")
+        messagebox.showinfo(
+            TITLE,
+            "已匯入 cookies，之後出片都會使用。\n\n"
+            f"原本的 {Path(path).name} 可以刪掉了：cookies 等於你的 YouTube 登入狀態，不要留在下載資料夾或傳給別人。",
+            parent=self.root,
+        )
+
+    def _clear_cookies(self) -> None:
+        if messagebox.askyesno(TITLE, "要刪除匯入的 cookies 嗎？", parent=self.root):
+            self.cookie_store.clear()
+            self._update_controls()
+            self._log("已清除 cookies。")
+
+    def _blocked_message(self, error: str, used_cookies: bool) -> str:
+        if used_cookies:
+            return (
+                "用了匯入的 cookies，YouTube 仍然要求登入驗證，或 cookies 讀不了：cookies 可能已經失效。\n"
+                "請重新匯出 cookies.txt、匯入後再出片一次。\n\n"
+                f"詳細原因：{error}"
+            )
+        return (
+            "YouTube 要求登入驗證，這台電腦目前無法下載。\n"
+            "請用瀏覽器擴充功能匯出 YouTube 的 cookies.txt，按「匯入 cookies.txt…」匯入後再出片一次。"
+        )
+
     # ---- 出片 ----
 
     def _start(self) -> None:
@@ -142,15 +203,18 @@ class App:
         self.progress.configure(value=0, maximum=1)
         self._log(f"開始出片：{source}")
         self.status.set("準備中…")
-        self.worker = threading.Thread(target=self._work, args=(source, output, self.refresh.get()), daemon=True)
+        imported = self.cookie_store.current()
+        self.used_cookies = imported is not None
+        args = (source, output, imported.path if imported else None, self.refresh.get())
+        self.worker = threading.Thread(target=self._work, args=args, daemon=True)
         self.worker.start()
         self._update_controls()
         self.root.after(POLL_MS, self._poll)
 
-    def _work(self, source: Path, output: Path, refresh: bool) -> None:
+    def _work(self, source: Path, output: Path, cookies: Path | None, refresh: bool) -> None:
         """背景執行緒：不碰任何 widget。"""
         try:
-            result = run_job(source, output, refresh=refresh, progress=self.events.put)
+            result = run_job(source, output, cookies=cookies, refresh=refresh, progress=self.events.put)
         except Exception as error:  # 沒預料到的錯誤也要回報，不然視窗會一直停在出片中
             result = JobResult(error=f"發生沒有預料到的錯誤：{error!r}")
         self.events.put(result)
@@ -191,7 +255,8 @@ class App:
             self.status.set("沒有輸出")
             self._log(f"沒有輸出：{result.error}")
             self._update_controls()
-            messagebox.showerror(TITLE, result.error, parent=self.root)
+            message = self._blocked_message(result.error, self.used_cookies) if result.blocked else result.error
+            messagebox.showerror(TITLE, message, parent=self.root)
             return
         assert result.output is not None
         self.last_output = result.output

@@ -63,6 +63,14 @@ critshowcase critlog-chunithm-b50-video.zip --cookies-from-browser firefox
 - 瀏覽器的 cookies 只在執行期間存成暫存檔，結束時就刪除。
 - 讀不到 cookies，或用了 cookies 仍然被要求登入驗證時，工具會直接停下來，不會把每個片段都當成下載失敗。
 
+#### 在 GUI 匯入 cookies
+
+GUI 的「YouTube cookies」區塊按「匯入 cookies.txt…」，選瀏覽器擴充功能匯出的檔案。匯入時會先檢查是不是 Netscape 格式、裡面有沒有 youtube.com 的 cookies，通過才留下來，之後出片都會自動使用。
+
+- 匯入的是一份複本，原本下載資料夾裡的 cookies.txt 可以刪掉。cookies 等於你的 YouTube 登入狀態，不要傳給別人。
+- 複本放在 `cookies.txt`，跟片段快取同一個 critshowcase 資料夾（Windows 是 `%LOCALAPPDATA%\critshowcase\cookies.txt`），但不在 `clips` 裡，刪快取不會刪到它。按「清除」或直接刪掉這個檔案就不再使用。
+- 只有 GUI 會用匯入的 cookies；命令列仍要自己加 `--cookies` 或 `--cookies-from-browser`。
+
 ### 片段快取
 
 下載過的片段會依（影片 ID、開始秒數、長度）留在快取裡。回網頁改了評論、重新匯出後再執行一次，沒改過的片段不會重新下載。
