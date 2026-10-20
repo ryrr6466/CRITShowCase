@@ -48,6 +48,7 @@ class App:
         self.percent = tk.StringVar()
         self.cookie_status = tk.StringVar()
         theme.apply(root)
+        theme.set_icon(root)
         root.title(TITLE)
         root.geometry(f"{px(720)}x{px(700)}")
         root.minsize(px(600), px(600))
@@ -151,11 +152,13 @@ class App:
         self.open_folder.grid(row=0, column=2, padx=(px(8), 0))
 
     def _build_header(self) -> None:
-        header = ttk.Frame(self.root, style="Header.TFrame", padding=(px(20), px(14), px(20), px(14)))
+        header = ttk.Frame(self.root, style="Header.TFrame", padding=(px(20), px(16), px(20), px(16)))
         header.grid(row=0, column=0, sticky="ew")
-        ttk.Label(header, text="CRITShowCase", style="Title.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(header, text="把網頁匯出的 B50 影片專案合成 mp4", style="Subtitle.TLabel").grid(row=1, column=0, sticky="w")
-        ttk.Frame(self.root, style="Accent.TFrame", height=px(3)).grid(row=0, column=0, sticky="sew")
+        ttk.Label(header, image=theme.wordmark(self.root), style="Title.TLabel").grid(row=0, column=0, rowspan=2, sticky="w")
+        ttk.Frame(header, style="Divider.TFrame", width=1).grid(row=0, column=1, rowspan=2, sticky="ns", padx=px(16))
+        ttk.Label(header, text="ShowCase 出片工具", style="Title.TLabel").grid(row=0, column=2, sticky="sw")
+        ttk.Label(header, text="把網頁匯出的 B50 影片專案合成 mp4", style="Subtitle.TLabel").grid(row=1, column=2, sticky="nw")
+        theme.trail(self.root, px(3)).grid(row=0, column=0, sticky="sew")
 
     def _card(self, parent: ttk.Frame, row: int, title: str) -> ttk.Frame:
         """白底卡片：標題在上，回傳放內容的 frame。"""

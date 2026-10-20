@@ -24,6 +24,9 @@ critshowcase-gui = "critshowcase.gui:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"critshowcase.gui" = ["assets/*.png"]
+
 [[tool.mypy.overrides]]
 module = ["yt_dlp", "yt_dlp.*"]
 ignore_missing_imports = true
