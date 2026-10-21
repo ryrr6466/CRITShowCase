@@ -1,122 +1,123 @@
 # CRITShowCase
 
-CRITShowCase（B50 影片）的出片工具。讀 [critlog.me](https://critlog.me) 的 CRITShowCase 頁面匯出的影片專案（zip），在你自己的電腦上下載需要的 YouTube 片段，合成一支 mp4。
+[![Release](https://img.shields.io/github/v/release/ryrr6466/CRITShowCase)](https://github.com/ryrr6466/CRITShowCase/releases/latest)
+[![Build](https://github.com/ryrr6466/CRITShowCase/actions/workflows/windows-build.yml/badge.svg)](https://github.com/ryrr6466/CRITShowCase/actions/workflows/windows-build.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-每個段落的畫面（曲名、成績、評論、非官方標示）都由網頁畫好，這個工具只把片段塞進畫面的影片框、接上轉場，自己不畫任何文字。
+把 [critlog.me](https://critlog.me) 匯出的 CHUNITHM B50 影片專案，在你自己的電腦上合成一支 mp4。
 
-## 安裝
+![CRITShowCase 出片工具](docs/images/gui.png)
 
-### Windows 免安裝版
+在 critlog.me 的 CRITShowCase 頁面排好 B50、挑好每首歌的 YouTube 片段後，網頁會匯出一個影片專案（zip）。這個工具負責剩下的事：
 
-不必安裝 Python、ffmpeg 或 Deno，這些都包在裡面了。
+- 下載每首歌需要的那一小段 YouTube 影片
+- 把片段塞進網頁畫好的畫面（曲名、成績、評論、非官方標示都由網頁畫好，工具自己不畫任何文字）
+- 接上轉場，輸出 1920×1080、60 fps 的 mp4
 
-1. 到 [GitHub Releases](https://github.com/ryrr6466/CRITShowCase/releases/latest) 下載 `critshowcase-<版本>-windows-x64.zip`（約 140 MB）。
-2. 解壓到任何地方（解開後約 330 MB）。整個 `critshowcase` 資料夾要放在一起，不要只複製 `critshowcase.exe`。
-3. 雙擊 `critshowcase-gui.exe` 打開視窗出片（見下面「用 GUI 出片」）。
-   或是把網頁匯出的影片專案 zip 拖到 `critshowcase.exe` 上，就會開始出片；結束後視窗會停住，顯示成品位置或出錯原因，按 Enter 關閉。
+這是非官方工具，與 SEGA 無關。
 
-- 第一次執行時 Windows 可能跳出「Windows 已保護您的電腦」（SmartScreen）：這個 exe 沒有程式碼簽章。按「其他資訊」→「仍要執行」即可。
-- YouTube 常常改版。很多片段突然下載失敗時，到 Releases 下載最新版，解壓後取代舊的資料夾。片段快取不受影響。
-- 下面「用法」的所有選項都能用：在命令列執行 `critshowcase.exe`，例如 `critshowcase.exe 匯出的.zip --cookies-from-browser firefox`。
-- `licenses` 資料夾裡是隨附元件（ffmpeg、Deno、Python、Tcl／Tk 與各套件）的授權文字。ffmpeg 以 GPL 授權，原始碼的取得方式見 `licenses/ffmpeg-SOURCE.txt`。
+## 下載
 
-### macOS 版（Apple Silicon）
+| 系統 | 下載 | 說明 |
+|---|---|---|
+| Windows 10／11（64 位元） | [critshowcase-windows-x64.zip](https://github.com/ryrr6466/CRITShowCase/releases/latest/download/critshowcase-windows-x64.zip) | 解壓即用 |
+| macOS 12 以上（Apple Silicon） | [critshowcase-macos-arm64.zip](https://github.com/ryrr6466/CRITShowCase/releases/latest/download/critshowcase-macos-arm64.zip) | 已簽章、經 Apple 公證 |
+| Intel Mac、Linux | 用 pip 安裝 | 見[其他安裝方式](#其他安裝方式) |
 
-1. 到 [GitHub Releases](https://github.com/ryrr6466/CRITShowCase/releases/latest) 下載 `critshowcase-<版本>-macos-arm64.zip`。
-2. 雙擊解壓，把 `CRITShowCase.app` 拖到「應用程式」資料夾。
-3. 打開 `CRITShowCase.app` 出片（見下面「用 GUI 出片」）；也可以把影片專案 zip 拖到 Dock 上的圖示。
+連結一律下載最新版。兩個免安裝版都附好了 Python、ffmpeg 與 Deno，不必另外安裝任何東西。舊版本與更新內容見 [Releases](https://github.com/ryrr6466/CRITShowCase/releases)。
 
-- 需要 macOS 12 以上、Apple Silicon（M 系列）的 Mac。Intel Mac 請用 pip 安裝。
-- app 有 Apple 的開發者簽章並經過公證，雙擊就能打開。
-- 命令列版在 app 裡：`/Applications/CRITShowCase.app/Contents/MacOS/critshowcase 匯出的.zip`。
-- 隨附元件的授權文字在解壓出來的 `licenses` 資料夾。ffmpeg 以 GPLv3 授權，原始碼的取得方式見 `licenses/ffmpeg-SOURCE.txt`。
+### Windows
 
-### 用 pip 安裝（Intel Mac、Linux 與進階使用者）
+1. 解壓到任何地方。整個 `critshowcase` 資料夾要放在一起，不要只複製裡面的 exe。
+2. 雙擊 `critshowcase-gui.exe`。
 
-需要：
+第一次執行時，Windows 可能跳出「Windows 已保護您的電腦」（SmartScreen），因為這個 exe 沒有程式碼簽章。按「其他資訊」→「仍要執行」即可。
 
-- Python 3.10 以上
-- [ffmpeg](https://ffmpeg.org/download.html)（`ffmpeg` 與 `ffprobe` 要能在命令列執行）
-- [Deno](https://deno.com/) 或 [Node.js](https://nodejs.org/)：yt-dlp 要用它解 YouTube 的驗證，沒有的話很多片段會下載失敗
+### macOS
 
-```bash
-pip install git+https://github.com/ryrr6466/CRITShowCase.git
-```
+1. 雙擊解壓，把 `CRITShowCase.app` 拖到「應用程式」資料夾。
+2. 打開 `CRITShowCase.app`。
 
-[yt-dlp](https://github.com/yt-dlp/yt-dlp)（含解 YouTube 驗證用的 yt-dlp-ejs）會一起裝好。YouTube 常常改版，下載失敗時先更新 yt-dlp：
+### 更新
 
-```bash
-pip install -U "yt-dlp[default]"
-```
+YouTube 常常改版。很多片段突然下載失敗時，先下載最新版：Windows 解壓後取代舊的資料夾，macOS 取代舊的 app。下載過的片段與匯入的 cookies 都會保留。
 
-下載失敗、原因看不懂時，加上 `--verbose` 會印出 yt-dlp 的詳細訊息。回報問題時請附上 `critshowcase --version` 的輸出。
+## 使用方式
 
-## 用 GUI 出片
+1. 按「選擇…」選網頁匯出的影片專案 zip。也可以直接把 zip 拖到程式圖示上（macOS 可以拖到 Dock 上的圖示）。
+2. 成品預設放在 zip 旁邊，按「另存為…」可以換位置。
+3. 按「開始出片」。進度條會走過下載片段、合成段落、輸出 mp4 三個階段；最後輸出 mp4 只有一步，沒有百分比，狀態文字會一直動。
+4. 完成後按「開啟資料夾」找到成品。
 
-- Windows 免安裝版：雙擊 `critshowcase-gui.exe`；把影片專案 zip 拖到它的圖示上，會預先填好影片專案。
-- macOS 版：打開 `CRITShowCase.app`；把影片專案 zip 拖到 app 或 Dock 上的圖示，會預先填好影片專案。
-- pip 版：執行 `critshowcase-gui`。需要 Python 附的 tkinter；Linux 沒有的話要安裝 `python3-tk`。
+出片中關閉視窗會先確認。已經下載好的片段會留在快取，下次不必重新下載。
 
-1. 按「選擇…」選網頁匯出的影片專案。成品預設放在旁邊，按「另存為…」可以換位置。
-2. YouTube 要求登入驗證時才需要 cookies：按「怎麼匯出 cookies？」照著教學匯出，再按「匯入 cookies.txt…」（見下面「在 GUI 匯入 cookies」）。
-3. 按「開始出片」。進度條包含下載片段、合成段落、輸出 mp4；最後輸出 mp4 只有一步、沒有百分比，狀態文字會一直動。
-4. 結束時會顯示成品位置與下載失敗的片段，按「開啟資料夾」找到成品。回報問題時，按「複製紀錄」貼上整段紀錄。
+## 遇到問題
 
-- 出片中關閉視窗會先確認。已經下載好的片段會留在快取，下次不必重新下載；沒輸出完的 mp4 不會留下。
-- 跟拖到 `critshowcase.exe` 的差別：GUI 沒有黑色視窗、可以選輸出位置、記得匯入的 cookies。`--cookies-from-browser`、`--verbose` 等選項只有命令列版有。
+### 出現「YouTube 要求登入驗證」
 
-## 用法
+YouTube 有時會要求證明你不是機器人，這時需要匯入你的 YouTube cookies：
+
+1. 按「怎麼匯出 cookies？」，照著教學用瀏覽器擴充功能匯出 `cookies.txt`。教學會請你在無痕視窗登入，因為從一般視窗匯出的 cookies 很快就會失效。
+2. 按「匯入 cookies.txt…」選匯出的檔案。之後出片都會自動使用。
+
+- cookies 等於你的 YouTube 登入狀態，不要傳給別人。匯入的是一份複本，原本的檔案可以刪掉。
+- 建議用分身帳號：YouTube 可能會停用被拿來下載影片的帳號。
+- 之後又出現同樣的訊息，代表 cookies 失效了，照同樣步驟重新匯出、匯入即可。
+
+### 有些片段下載失敗
+
+片段下載不到（影片被刪、設成私人、地區限制、網路錯誤）時，那一段會改成靜態畫面加靜音，整支影片照樣輸出，結束時會列出是哪幾段。回 CRITShowCase 頁面換掉這些片段、重新匯出後再出一次即可。
+
+很多片段同時失敗，通常是 YouTube 改版了，請先[更新](#更新)。
+
+### 回報問題
+
+到 [Issues](https://github.com/ryrr6466/CRITShowCase/issues) 開一個新問題，附上：
+
+- 按「複製紀錄」複製的整段紀錄
+- 視窗左下角的版本（例如 `critshowcase 0.3.0 · yt-dlp 2026.8.19`）
+- 作業系統
+
+請不要附上 cookies.txt 或含有個人資訊的檔案。
+
+## 隱私
+
+- 所有處理都在你的電腦上進行。工具只會連上 YouTube 下載片段，不會回傳任何資料，也不會自動檢查更新。
+- 匯入的 cookies 只存在你的電腦，只用來下載 YouTube 片段。按「清除」或直接刪掉檔案就不再使用。
+
+| | Windows | macOS | Linux |
+|---|---|---|---|
+| 片段快取 | `%LOCALAPPDATA%\critshowcase\clips` | `~/Library/Caches/critshowcase/clips` | `~/.cache/critshowcase/clips` |
+| 匯入的 cookies | `%LOCALAPPDATA%\critshowcase\cookies.txt` | `~/Library/Application Support/critshowcase/cookies.txt` | `~/.cache/critshowcase/cookies.txt` |
+
+想清除快取，直接刪掉 `clips` 資料夾即可。
+
+## 使用提醒
+
+把別人的譜面影片剪進自己的影片再上傳，可能會被原作者或權利人申訴。這個工具只是讓下載發生在你自己的電腦上，不代表可以任意轉載。請先確認來源頻道的轉載規定，或改用自己的手元影片（上傳成不公開影片後，在網頁上貼網址）。
+
+畫面上的非官方標示不能拿掉。
+
+## 命令列
+
+免安裝版也附了命令列版：Windows 是資料夾裡的 `critshowcase.exe`（也可以直接把 zip 拖到它上面出片），macOS 是 `CRITShowCase.app/Contents/MacOS/critshowcase`。
 
 ```bash
 critshowcase critlog-chunithm-b50-video.zip
 ```
 
-- 輸入可以是網頁匯出的 zip，或解開後的 `project.json`。
-- 成品預設放在輸入檔旁邊（`critlog-chunithm-b50-video.mp4`），用 `-o` 指定其他位置。
-- 輸出 1920×1080、60 fps 的 H.264／AAC mp4。
-
-### YouTube 要求登入驗證時
-
-出現「YouTube 要求登入驗證」時，讓 yt-dlp 使用你瀏覽器的 cookies（瀏覽器要先登入 YouTube）：
-
-```bash
-critshowcase critlog-chunithm-b50-video.zip --cookies-from-browser firefox
-```
-
-也可以用 `--cookies cookies.txt` 指定匯出的 cookies 檔。詳見 yt-dlp 的 [FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)。
-
-- Windows 上的 Edge／Chrome 開著時會鎖住 cookie 資料庫，要先完全關閉（包含背景執行的程序）才讀得到；Firefox 沒有這個問題。
-- 瀏覽器的 cookies 只在執行期間存成暫存檔，結束時就刪除。
-- 讀不到 cookies，或用了 cookies 仍然被要求登入驗證時，工具會直接停下來，不會把每個片段都當成下載失敗。
-
-#### 在 GUI 匯入 cookies
-
-GUI 的「YouTube cookies」區塊按「怎麼匯出 cookies？」，會打開教學：安裝擴充功能、在無痕視窗登入 YouTube 後匯出 cookies.txt（從一般視窗匯出的 cookies 很快就會失效）。
-匯出後按「匯入 cookies.txt…」，選匯出的檔案。匯入時會先檢查是不是 Netscape 格式、裡面有沒有 youtube.com 的 cookies，通過才留下來，之後出片都會自動使用。
-
-- 匯入的是一份複本，原本下載資料夾裡的 cookies.txt 可以刪掉。cookies 等於你的 YouTube 登入狀態，不要傳給別人。
-- 複本放在 `cookies.txt`，跟片段快取同一個 critshowcase 資料夾（Windows 是 `%LOCALAPPDATA%\critshowcase\cookies.txt`），但不在 `clips` 裡，刪快取不會刪到它。macOS 例外，放在 `~/Library/Application Support/critshowcase/cookies.txt`：`~/Library/Caches` 可能被系統或清理程式整個刪掉。按「清除」或直接刪掉這個檔案就不再使用。
-- 只有 GUI 會用匯入的 cookies；命令列仍要自己加 `--cookies` 或 `--cookies-from-browser`。
-
-### 片段快取
-
-下載過的片段會依（影片 ID、開始秒數、長度）留在快取裡。回網頁改了評論、重新匯出後再執行一次，沒改過的片段不會重新下載。
-
-| 系統 | 快取位置 |
+| 選項 | 說明 |
 |---|---|
-| Windows | `%LOCALAPPDATA%\critshowcase\clips` |
-| macOS | `~/Library/Caches/critshowcase/clips` |
-| Linux | `$XDG_CACHE_HOME/critshowcase/clips`（預設 `~/.cache/critshowcase/clips`） |
+| `-o 檔案.mp4` | 輸出位置（預設放在輸入檔旁邊） |
+| `--cookies cookies.txt` | 使用匯出的 cookies 檔 |
+| `--cookies-from-browser firefox` | 直接讀瀏覽器的 cookies（瀏覽器要先登入 YouTube） |
+| `--refresh` | 不用快取，所有片段重新下載 |
+| `--verbose` | 印出 yt-dlp 的詳細訊息（除錯用） |
+| `--version` | 印出 critshowcase 與 yt-dlp 的版本 |
 
-- 想清除快取，直接刪掉這個資料夾即可。
-- 加上 `--refresh` 會略過快取、重新下載所有片段（例如來源影片換過內容時）。
-- 用「以系統管理員身分執行」的終端機跑過的話，那次存的快取檔，一般權限可能讀不到；工具會自動重新下載，不會失敗。
-  想清掉這些檔案，要用系統管理員身分刪除快取資料夾。建議平常用一般權限執行就好。
-
-### 下載失敗的片段
-
-某個片段下載不到（影片被刪、設成私人、地區限制、網路錯誤）時，那一段改成靜態畫面＋靜音，整支影片照樣輸出，結束時列出是哪幾段。
-回 CRITShowCase 頁面換掉這些片段、重新匯出後再執行一次即可。
+- 輸入可以是網頁匯出的 zip，或解開後的 `project.json`。
+- Windows 上的 Edge／Chrome 開著時會鎖住 cookie 資料庫，要完全關閉（包含背景程序）才讀得到；Firefox 沒有這個問題。
+- 命令列不會使用 GUI 匯入的 cookies，要自己加 `--cookies` 或 `--cookies-from-browser`。
 
 | 結束碼 | 意思 |
 |---|---|
@@ -124,14 +125,26 @@ GUI 的「YouTube cookies」區塊按「怎麼匯出 cookies？」，會打開�
 | 1 | 沒有輸出：影片專案不能用、找不到 ffmpeg／yt-dlp、讀不到 cookies、YouTube 要求登入驗證，或 ffmpeg 失敗 |
 | 3 | 有輸出，但有片段下載失敗、改成靜態畫面 |
 
-## 法律提醒
+## 其他安裝方式
 
-重新上傳別人的譜面影片，可能會被原作者或權利人申訴。這個工具只是讓下載發生在你自己的電腦上，不代表可以任意轉載；
-請先確認來源頻道的轉載規定，或改用自己的手元影片（上傳成不公開影片後，在網頁上貼網址）。
+Intel Mac、Linux，或想自己管理 Python 環境時，可以用 pip 安裝。需要：
 
-這是非官方工具，與 SEGA 無關。畫面上的非官方標示不能拿掉。
+- Python 3.10 以上（GUI 需要 tkinter；Linux 沒有的話安裝 `python3-tk`）
+- [ffmpeg](https://ffmpeg.org/download.html)：`ffmpeg` 與 `ffprobe` 要能在命令列執行
+- [Deno](https://deno.com/) 或 [Node.js](https://nodejs.org/)：yt-dlp 要用它解 YouTube 的驗證，沒有的話很多片段會下載失敗
 
-## 開發
+```bash
+pip install git+https://github.com/ryrr6466/CRITShowCase.git
+critshowcase-gui
+```
+
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) 會一起裝好。片段下載失敗時，先更新 yt-dlp：
+
+```bash
+pip install -U "yt-dlp[default]"
+```
+
+## 參與開發
 
 ```bash
 python -m venv .venv
@@ -140,43 +153,15 @@ python -m venv .venv
 .venv/Scripts/python -m pytest
 ```
 
-測試會實際呼叫 ffmpeg，不會連上 YouTube。
+測試會實際呼叫 ffmpeg（要先裝好），不會連上 YouTube。
 
-### 建置 Windows 免安裝版
+- 各模組的用途寫在 `src/critshowcase` 每個檔案開頭的說明。
+- 建置免安裝版、簽章與發布流程見 [docs/building.md](docs/building.md)。
+- 歡迎開 Issue 或 Pull Request。修改行為時請一併補上測試。
 
-```bash
-.venv/Scripts/python -m pip install -e ".[build]"
-.venv/Scripts/python packaging/build.py
-.venv/Scripts/python packaging/smoke.py dist/critshowcase
-```
+## 授權
 
-- `build.py` 下載固定版本的 ffmpeg 與 Deno（網址與 sha256 寫在腳本裡，升級時手動改）、執行 PyInstaller，成品是 `dist/critshowcase-<版本>-windows-x64.zip`。
-- `smoke.py` 在 PATH 上只有 Windows 系統資料夾的環境執行 exe，確認不靠你自己裝的工具也能出片，並確認 `critshowcase-gui.exe` 開得出視窗（會跳出一秒後自己關掉）。加上 `--youtube` 會實際下載一個 YouTube 片段（太常執行會被 YouTube 要求登入驗證）。
-- 推 `v<版本>` tag（要跟 `pyproject.toml` 的版本一致）時，GitHub Actions 會建置 Windows 與 macOS 版、做煙霧測試，並把兩個 zip 附到 Release；也可以在 Actions 頁面手動執行，只建置與測試。
-
-### 建置 macOS 版
-
-在 Apple Silicon 的 Mac 上用同樣的指令（`.venv/bin/python`）：`build.py` 建出 `dist/CRITShowCase/CRITShowCase.app` 與 `dist/critshowcase-<版本>-macos-arm64.zip`，`smoke.py` 的參數是 `dist/CRITShowCase`。
-
-- ffmpeg 用 [martin-riedl.de](https://ffmpeg.martin-riedl.de/) 的 Apple Silicon release 建置，Deno 用官方的 `aarch64-apple-darwin` 版，都固定版本與 sha256。它們放在 `CRITShowCase.app/Contents/MacOS/tools`。
-- 簽章與公證由環境變數控制。沒設定時只做 ad-hoc 簽章：自己的 Mac 上能跑，但別人下載後會被 Gatekeeper 擋下。
-
-| 環境變數 | 內容 |
-|---|---|
-| `MACOS_SIGN_IDENTITY` | 簽章身分，例如 `Developer ID Application: 名字 (TEAMID)`（`security find-identity -v -p codesigning` 列得出來） |
-| `NOTARY_PROFILE` | 本機用：`xcrun notarytool store-credentials` 存好的 profile 名稱 |
-| `NOTARY_KEY`、`NOTARY_KEY_ID`、`NOTARY_ISSUER` | 或改用 App Store Connect API key：`.p8` 檔路徑、Key ID、Issuer ID |
-
-GitHub Actions 從 repo secrets 取得憑證與 API key；推 tag 時沒有 secrets，macOS 那一份會失敗，不會發布沒簽章的版本。第一次設定：
-
-1. 在 Mac 的「鑰匙圈存取」匯出 **Developer ID Application** 憑證（含私鑰）成 `.p12`，設一組密碼。沒有的話先到 Apple Developer 網站的 Certificates 建立。
-2. 到 App Store Connect →「使用者與存取權限」→「整合」→ App Store Connect API 建立一把 key（存取權「開發者」即可），下載 `.p8`，記下 Key ID 與 Issuer ID。
-3. 設定 secrets（在 repo 資料夾執行，`gh` 會提示輸入的值不會留在 shell 歷史）：
-
-```bash
-base64 -i DeveloperID.p12 | gh secret set MACOS_CERTIFICATE
-gh secret set MACOS_CERTIFICATE_PASSWORD
-base64 -i AuthKey_XXXXXXXXXX.p8 | gh secret set APPLE_API_KEY
-gh secret set APPLE_API_KEY_ID
-gh secret set APPLE_API_ISSUER_ID
-```
+- 程式碼以 [MIT License](LICENSE) 授權。
+- **CRITLOG 的名稱、字標與 icon 不在 MIT 授權範圍內**（`src/critshowcase/gui/assets`、`packaging/critshowcase.ico`、`packaging/critshowcase.icns`）。fork 或修改後發布時，請換成你自己的名稱與圖示。
+- 免安裝版另外附帶了 ffmpeg（GPLv3）、Deno（MIT）、Python 與 Tcl／Tk 等元件，各自依其授權發布。授權文字與 ffmpeg 原始碼的取得方式，放在下載的 zip 裡的 `licenses` 資料夾。
+- CHUNITHM 是 SEGA 的商標。本專案與 SEGA 無關。

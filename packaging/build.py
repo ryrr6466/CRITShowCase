@@ -1,5 +1,6 @@
-"""建出免安裝版：Windows 是 dist/critshowcase-<版本>-windows-x64.zip，
-Apple Silicon 的 macOS 是 dist/critshowcase-<版本>-macos-arm64.zip（裡面是簽章、公證過的 CRITShowCase.app）。
+"""建出免安裝版：Windows 是 dist/critshowcase-windows-x64.zip，
+Apple Silicon 的 macOS 是 dist/critshowcase-macos-arm64.zip（裡面是簽章、公證過的 CRITShowCase.app）。
+檔名不含版本：網站可以用 releases/latest/download/<檔名> 的固定連結下載最新版。
 
 用法：python packaging/build.py（在哪個平台執行就建哪個平台的版本）
 需要：已安裝本專案與 PyInstaller（pip install -e ".[build]"）；macOS 的簽章設定見 build_macos()。
@@ -23,7 +24,7 @@ import urllib.error
 import urllib.request
 import zipfile
 from dataclasses import dataclass, field
-from importlib.metadata import distribution, packages_distributions, version
+from importlib.metadata import distribution, packages_distributions
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -125,7 +126,7 @@ def build_windows() -> None:
     for tool, archive in zip(WINDOWS_TOOLS, archives):
         extract(archive, tool.files, tools_dir)
     write_licenses(APP / "licenses", WINDOWS_TOOLS, archives)
-    package = DIST / f"critshowcase-{version('critshowcase')}-windows-x64.zip"
+    package = DIST / "critshowcase-windows-x64.zip"
     make_zip(APP, package)
     print(f"完成：{package}")
     print(f"zip {package.stat().st_size / 2**20:.0f} MB，解壓後 {folder_size(APP) / 2**20:.0f} MB")
@@ -154,7 +155,7 @@ def build_macos() -> None:
     MACOS_STAGE.mkdir()
     shutil.move(APP_BUNDLE, MACOS_STAGE / APP_BUNDLE.name)
     write_licenses(MACOS_STAGE / "licenses", MACOS_TOOLS, archives)
-    package = DIST / f"critshowcase-{version('critshowcase')}-macos-arm64.zip"
+    package = DIST / "critshowcase-macos-arm64.zip"
     package.unlink(missing_ok=True)
     # ditto 保留 app 裡的符號連結、權限與簽章；Python 的 zipfile 會弄壞
     subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(MACOS_STAGE), str(package)], check=True)

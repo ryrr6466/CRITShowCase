@@ -11,6 +11,11 @@ license = "MIT"
 requires-python = ">=3.10"
 dependencies = ["yt-dlp[default]"]
 
+[project.urls]
+Homepage = "https://github.com/ryrr6466/CRITShowCase"
+Releases = "https://github.com/ryrr6466/CRITShowCase/releases"
+Issues = "https://github.com/ryrr6466/CRITShowCase/issues"
+
 [project.optional-dependencies]
 test = ["pytest>=8", "mypy>=1.10"]
 build = ["pyinstaller>=6"]
