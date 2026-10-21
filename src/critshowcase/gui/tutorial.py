@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import sys
 import tkinter as tk
 import webbrowser
 from collections.abc import Callable
@@ -68,9 +69,9 @@ COMMON = {
 }
 
 
-def steps(browser: Browser) -> list[str]:
-    """編號步驟；網址以 {link:文字|網址} 標出。"""
-    return [
+def steps(browser: Browser, platform: str = sys.platform) -> list[str]:
+    """編號步驟；網址以 {link:文字|網址} 標出。快捷鍵照 Windows 寫，macOS 換成 Cmd。"""
+    lines = [
         f"安裝擴充功能「{browser.extension}」：{{link:打開擴充功能頁面|{browser.store_url}}}",
         f"讓它可以在{browser.private_window}執行。\n{browser.allow_private}",
         f"開一個新的{browser.private_window}（{browser.shortcut}），登入 YouTube。先把其他{browser.private_window}都關掉。",
@@ -79,6 +80,9 @@ def steps(browser: Browser) -> list[str]:
         f"立刻關掉整個{browser.private_window}，之後不要再打開這個登入工作階段。",
         "回到這裡匯入 cookies.txt：",
     ]
+    if platform == "darwin":
+        return [line.replace("Ctrl+", "Cmd+") for line in lines]
+    return lines
 
 
 class TutorialWindow:

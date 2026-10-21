@@ -1,12 +1,14 @@
 """GUI 匯入的 cookies：使用者用瀏覽器擴充功能匯出的 cookies.txt，複製一份留著，之後出片都用它。
 
-只存一份，放在 critshowcase 的使用者資料夾（Windows 是 %LOCALAPPDATA%\\critshowcase），不放在片段快取裡，
+只存一份，放在 critshowcase 的使用者資料夾（Windows 是 %LOCALAPPDATA%\\critshowcase，
+macOS 是 ~/Library/Application Support/critshowcase），不放在片段快取裡，
 刪快取不會順便刪掉 cookies。只有 GUI 會用；CLI 仍要明確給 --cookies。
 """
 from __future__ import annotations
 
 import os
 import shutil
+import sys
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
@@ -30,7 +32,12 @@ class ImportedCookies:
 
 
 def default_data_dir() -> Path:
-    """片段快取的上一層：critshowcase 的使用者資料夾。"""
+    """片段快取的上一層：critshowcase 的使用者資料夾。
+
+    macOS 例外：快取在 ~/Library/Caches，系統或清理程式可能整個刪掉，cookies 改放 Application Support。
+    """
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "critshowcase"
     return default_cache_dir().parent
 
 

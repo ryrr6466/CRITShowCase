@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import font, ttk
@@ -111,14 +112,19 @@ def _fonts(root: tk.Misc) -> None:
         named = font.nametofont(name, root)
         if family:
             named.configure(family=family)
-        named.configure(size=10)
+        named.configure(size=_pt(10))
     base = font.nametofont("TkDefaultFont", root)
-    _named(root, "CritTitle", base, size=14, weight="bold")
-    _named(root, "CritSubtitle", base, size=10)
-    _named(root, "CritHeading", base, size=11, weight="bold")
-    _named(root, "CritSmall", base, size=9)
-    _named(root, "CritButton", base, size=11, weight="bold")
+    _named(root, "CritTitle", base, size=_pt(14), weight="bold")
+    _named(root, "CritSubtitle", base, size=_pt(10))
+    _named(root, "CritHeading", base, size=_pt(11), weight="bold")
+    _named(root, "CritSmall", base, size=_pt(9))
+    _named(root, "CritButton", base, size=_pt(11), weight="bold")
     _named(root, "CritUnderline", base, underline=True)
+
+
+def _pt(size: int) -> int:
+    """字級寫成 Windows 上的點數。macOS 的 Tk 以 72 DPI 換算，同樣點數小一圈，放大成系統預設的 13 點左右。"""
+    return round(size * 1.3) if sys.platform == "darwin" else size
 
 
 def _named(root: tk.Misc, name: str, base: font.Font, **options: object) -> None:

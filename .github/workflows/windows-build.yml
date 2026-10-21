@@ -1,5 +1,6 @@
-# Windows 免安裝版：建置、在乾淨環境做煙霧測試；推 v* tag 時附到 GitHub Release。
-name: Windows build
+# 免安裝版（Windows、Apple Silicon 的 macOS）：建置、在乾淨環境做煙霧測試；推 v* tag 時附到 GitHub Release。
+# macOS 版的簽章與公證用 repo secrets（見 README「建置 macOS 版」）；推 tag 時沒有 secrets 就失敗，不發布沒簽章的版本。
+name: Build
 
 on:
   push:
@@ -16,7 +17,17 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            app: dist/critshowcase
+            artifact: critshowcase-windows-x64
+          - os: macos-15
+            app: dist/CRITShowCase
+            artifact: critshowcase-macos-arm64
+    runs-on: ${{ matrix.os }}
     env:
       PYTHONUTF8: "1"
     defaults:
@@ -44,26 +55,72 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: build/downloads
-          key: tools-${{ hashFiles('packaging/build.py') }}
+          key: tools-${{ runner.os }}-${{ hashFiles('packaging/build.py') }}
+
+      # 把 Developer ID 憑證匯入暫時的 keychain，並把簽章身分與公證用的 API key 交給 build.py
+      - name: Set up macOS signing
+        if: runner.os == 'macOS'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          if [ -z "$MACOS_CERTIFICATE" ]; then
+            echo "沒有簽章 secrets：只建 ad-hoc 簽章的測試版"
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -hex 16)
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity=$(security find-identity -v -p codesigning "$keychain" | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)"/\1/')
+          if [ -z "$identity" ]; then
+            echo "憑證裡沒有 Developer ID Application 的簽章身分"
+            exit 1
+          fi
+          echo "$APPLE_API_KEY" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          {
+            echo "MACOS_SIGN_IDENTITY=$identity"
+            echo "NOTARY_KEY=$RUNNER_TEMP/notary.p8"
+            echo "NOTARY_KEY_ID=$APPLE_API_KEY_ID"
+            echo "NOTARY_ISSUER=$APPLE_API_ISSUER_ID"
+          } >> "$GITHUB_ENV"
 
       - name: Build
+        env:
+          # 要發布的版本一定要簽章
+          SIGN_REQUIRED: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '' }}
         run: python packaging/build.py
 
       - name: Smoke test
-        run: python packaging/smoke.py dist/critshowcase ${{ inputs.youtube && '--youtube' || '' }}
+        run: python packaging/smoke.py ${{ matrix.app }} ${{ inputs.youtube && '--youtube' || '' }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: critshowcase-windows-x64
-          path: dist/critshowcase-*-windows-x64.zip
+          name: ${{ matrix.artifact }}
+          path: dist/critshowcase-*.zip
 
+      # 兩個平台各自上傳；誰先跑到誰建立 Release，另一個再附上去
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/critshowcase-*-windows-x64.zip --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" dist/critshowcase-*-windows-x64.zip --generate-notes
-          fi
+          package=$(ls dist/critshowcase-*.zip)
+          gh release upload "$GITHUB_REF_NAME" "$package" --clobber \
+            || gh release create "$GITHUB_REF_NAME" "$package" --generate-notes \
+            || gh release upload "$GITHUB_REF_NAME" "$package" --clobber
+
+      - name: Clean up macOS signing
+        if: always() && runner.os == 'macOS'
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary.p8"

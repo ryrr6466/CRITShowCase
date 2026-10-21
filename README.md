@@ -20,7 +20,18 @@ CRITShowCase（B50 影片）的出片工具。讀 [critlog.me](https://critlog.m
 - 下面「用法」的所有選項都能用：在命令列執行 `critshowcase.exe`，例如 `critshowcase.exe 匯出的.zip --cookies-from-browser firefox`。
 - `licenses` 資料夾裡是隨附元件（ffmpeg、Deno、Python、Tcl／Tk 與各套件）的授權文字。ffmpeg 以 GPL 授權，原始碼的取得方式見 `licenses/ffmpeg-SOURCE.txt`。
 
-### 用 pip 安裝（macOS、Linux 與進階使用者）
+### macOS 版（Apple Silicon）
+
+1. 到 [GitHub Releases](https://github.com/ryrr6466/CRITShowCase/releases/latest) 下載 `critshowcase-<版本>-macos-arm64.zip`。
+2. 雙擊解壓，把 `CRITShowCase.app` 拖到「應用程式」資料夾。
+3. 打開 `CRITShowCase.app` 出片（見下面「用 GUI 出片」）；也可以把影片專案 zip 拖到 Dock 上的圖示。
+
+- 需要 macOS 12 以上、Apple Silicon（M 系列）的 Mac。Intel Mac 請用 pip 安裝。
+- app 有 Apple 的開發者簽章並經過公證，雙擊就能打開。
+- 命令列版在 app 裡：`/Applications/CRITShowCase.app/Contents/MacOS/critshowcase 匯出的.zip`。
+- 隨附元件的授權文字在解壓出來的 `licenses` 資料夾。ffmpeg 以 GPLv3 授權，原始碼的取得方式見 `licenses/ffmpeg-SOURCE.txt`。
+
+### 用 pip 安裝（Intel Mac、Linux 與進階使用者）
 
 需要：
 
@@ -43,6 +54,7 @@ pip install -U "yt-dlp[default]"
 ## 用 GUI 出片
 
 - Windows 免安裝版：雙擊 `critshowcase-gui.exe`；把影片專案 zip 拖到它的圖示上，會預先填好影片專案。
+- macOS 版：打開 `CRITShowCase.app`；把影片專案 zip 拖到 app 或 Dock 上的圖示，會預先填好影片專案。
 - pip 版：執行 `critshowcase-gui`。需要 Python 附的 tkinter；Linux 沒有的話要安裝 `python3-tk`。
 
 1. 按「選擇…」選網頁匯出的影片專案。成品預設放在旁邊，按「另存為…」可以換位置。
@@ -83,7 +95,7 @@ GUI 的「YouTube cookies」區塊按「怎麼匯出 cookies？」，會打開�
 匯出後按「匯入 cookies.txt…」，選匯出的檔案。匯入時會先檢查是不是 Netscape 格式、裡面有沒有 youtube.com 的 cookies，通過才留下來，之後出片都會自動使用。
 
 - 匯入的是一份複本，原本下載資料夾裡的 cookies.txt 可以刪掉。cookies 等於你的 YouTube 登入狀態，不要傳給別人。
-- 複本放在 `cookies.txt`，跟片段快取同一個 critshowcase 資料夾（Windows 是 `%LOCALAPPDATA%\critshowcase\cookies.txt`），但不在 `clips` 裡，刪快取不會刪到它。按「清除」或直接刪掉這個檔案就不再使用。
+- 複本放在 `cookies.txt`，跟片段快取同一個 critshowcase 資料夾（Windows 是 `%LOCALAPPDATA%\critshowcase\cookies.txt`），但不在 `clips` 裡，刪快取不會刪到它。macOS 例外，放在 `~/Library/Application Support/critshowcase/cookies.txt`：`~/Library/Caches` 可能被系統或清理程式整個刪掉。按「清除」或直接刪掉這個檔案就不再使用。
 - 只有 GUI 會用匯入的 cookies；命令列仍要自己加 `--cookies` 或 `--cookies-from-browser`。
 
 ### 片段快取
@@ -140,4 +152,31 @@ python -m venv .venv
 
 - `build.py` 下載固定版本的 ffmpeg 與 Deno（網址與 sha256 寫在腳本裡，升級時手動改）、執行 PyInstaller，成品是 `dist/critshowcase-<版本>-windows-x64.zip`。
 - `smoke.py` 在 PATH 上只有 Windows 系統資料夾的環境執行 exe，確認不靠你自己裝的工具也能出片，並確認 `critshowcase-gui.exe` 開得出視窗（會跳出一秒後自己關掉）。加上 `--youtube` 會實際下載一個 YouTube 片段（太常執行會被 YouTube 要求登入驗證）。
-- 推 `v<版本>` tag（要跟 `pyproject.toml` 的版本一致）時，GitHub Actions 會建置、做煙霧測試，並把 zip 附到 Release；也可以在 Actions 頁面手動執行，只建置與測試。
+- 推 `v<版本>` tag（要跟 `pyproject.toml` 的版本一致）時，GitHub Actions 會建置 Windows 與 macOS 版、做煙霧測試，並把兩個 zip 附到 Release；也可以在 Actions 頁面手動執行，只建置與測試。
+
+### 建置 macOS 版
+
+在 Apple Silicon 的 Mac 上用同樣的指令（`.venv/bin/python`）：`build.py` 建出 `dist/CRITShowCase/CRITShowCase.app` 與 `dist/critshowcase-<版本>-macos-arm64.zip`，`smoke.py` 的參數是 `dist/CRITShowCase`。
+
+- ffmpeg 用 [martin-riedl.de](https://ffmpeg.martin-riedl.de/) 的 Apple Silicon release 建置，Deno 用官方的 `aarch64-apple-darwin` 版，都固定版本與 sha256。它們放在 `CRITShowCase.app/Contents/MacOS/tools`。
+- 簽章與公證由環境變數控制。沒設定時只做 ad-hoc 簽章：自己的 Mac 上能跑，但別人下載後會被 Gatekeeper 擋下。
+
+| 環境變數 | 內容 |
+|---|---|
+| `MACOS_SIGN_IDENTITY` | 簽章身分，例如 `Developer ID Application: 名字 (TEAMID)`（`security find-identity -v -p codesigning` 列得出來） |
+| `NOTARY_PROFILE` | 本機用：`xcrun notarytool store-credentials` 存好的 profile 名稱 |
+| `NOTARY_KEY`、`NOTARY_KEY_ID`、`NOTARY_ISSUER` | 或改用 App Store Connect API key：`.p8` 檔路徑、Key ID、Issuer ID |
+
+GitHub Actions 從 repo secrets 取得憑證與 API key；推 tag 時沒有 secrets，macOS 那一份會失敗，不會發布沒簽章的版本。第一次設定：
+
+1. 在 Mac 的「鑰匙圈存取」匯出 **Developer ID Application** 憑證（含私鑰）成 `.p12`，設一組密碼。沒有的話先到 Apple Developer 網站的 Certificates 建立。
+2. 到 App Store Connect →「使用者與存取權限」→「整合」→ App Store Connect API 建立一把 key（存取權「開發者」即可），下載 `.p8`，記下 Key ID 與 Issuer ID。
+3. 設定 secrets（在 repo 資料夾執行，`gh` 會提示輸入的值不會留在 shell 歷史）：
+
+```bash
+base64 -i DeveloperID.p12 | gh secret set MACOS_CERTIFICATE
+gh secret set MACOS_CERTIFICATE_PASSWORD
+base64 -i AuthKey_XXXXXXXXXX.p8 | gh secret set APPLE_API_KEY
+gh secret set APPLE_API_KEY_ID
+gh secret set APPLE_API_ISSUER_ID
+```

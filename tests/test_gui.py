@@ -36,6 +36,29 @@ def test_main_window_builds(root, make_project, tmp_path):
     root.update_idletasks()
 
 
+def test_document_opened_from_finder_becomes_the_project(root, make_project, tmp_path):
+    """macOS 把檔案拖到 app 圖示上時走 Apple Event，由 _open_documents 接手。"""
+    from critshowcase.cookies import CookieStore
+    from critshowcase.gui.app import App
+
+    app = App(root, cookie_store=CookieStore(tmp_path / "userdata"))
+    project = make_project([])
+
+    app._open_documents(str(project))
+
+    assert app.source.get() == str(project)
+    assert str(app.start.cget("state")) == "normal"
+
+
+def test_cookie_tutorial_uses_command_key_on_macos():
+    from critshowcase.gui.tutorial import BROWSERS, steps
+
+    for browser in BROWSERS:
+        text = "".join(steps(browser, platform="darwin"))
+        assert "Ctrl+" not in text
+        assert "Cmd+Shift+" in text
+
+
 def test_theme_fonts_outlive_apply(root):
     """樣式用名字指定字型；Font 物件被回收時 Tk 會刪掉字型，畫面就退回預設字型。"""
     import gc
