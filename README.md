@@ -20,11 +20,11 @@
 
 | 系統 | 下載 | 說明 |
 |---|---|---|
-| Windows 10／11（64 位元） | [`critshowcase-<版本>-windows-x64.zip`](https://github.com/ryrr6466/CRITShowCase/releases/latest) | 解壓即用 |
-| macOS 12 以上（Apple Silicon） | [`critshowcase-<版本>-macos-arm64.zip`](https://github.com/ryrr6466/CRITShowCase/releases/latest) | 已簽章、經 Apple 公證 |
+| Windows 10／11（64 位元） | [critshowcase-windows-x64.zip](https://github.com/ryrr6466/CRITShowCase/releases/latest/download/critshowcase-windows-x64.zip) | 解壓即用 |
+| macOS 12 以上（Apple Silicon） | [critshowcase-macos-arm64.zip](https://github.com/ryrr6466/CRITShowCase/releases/latest/download/critshowcase-macos-arm64.zip) | 已簽章、經 Apple 公證 |
 | Intel Mac、Linux | 用 pip 安裝 | 見[其他安裝方式](#其他安裝方式) |
 
-兩個免安裝版都附好了 Python、ffmpeg 與 Deno，不必另外安裝任何東西。
+連結一律下載最新版。兩個免安裝版都附好了 Python、ffmpeg 與 Deno，不必另外安裝任何東西。舊版本與更新內容見 [Releases](https://github.com/ryrr6466/CRITShowCase/releases)。
 
 ### Windows
 

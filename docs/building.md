@@ -10,8 +10,8 @@
 
 | 平台 | 成品 |
 |---|---|
-| Windows x64 | `dist/critshowcase/`、`dist/critshowcase-<版本>-windows-x64.zip` |
-| macOS（Apple Silicon） | `dist/CRITShowCase/CRITShowCase.app`、`dist/critshowcase-<版本>-macos-arm64.zip` |
+| Windows x64 | `dist/critshowcase/`、`dist/critshowcase-windows-x64.zip` |
+| macOS（Apple Silicon） | `dist/CRITShowCase/CRITShowCase.app`、`dist/critshowcase-macos-arm64.zip` |
 
 - `build.py` 下載固定版本的 ffmpeg 與 Deno。網址與 sha256 寫在腳本裡，升級時手動改。
 - 下載的 zip 裡有 `licenses` 資料夾，收齊所有隨附元件的授權文字。
@@ -41,6 +41,8 @@
 ## 發布
 
 推 `v<版本>` tag 時（要跟 `pyproject.toml` 的版本一致），GitHub Actions 會建置 Windows 與 macOS 版、做煙霧測試，並把兩個 zip 附到 Release。也可以在 Actions 頁面手動執行，只建置與測試、不發布。
+
+zip 的檔名不含版本號，README 與網站都用固定連結下載最新版，例如 `https://github.com/ryrr6466/CRITShowCase/releases/latest/download/critshowcase-windows-x64.zip`。所以**不要改檔名**，也不要把預覽版標成 Latest：`latest` 指向最新一個不是 draft、不是 prerelease 的 Release。
 
 1. 在 PR 裡改 `pyproject.toml` 的版本，合併。
 2. 在合併後的 commit 上打 tag 並推上去：
