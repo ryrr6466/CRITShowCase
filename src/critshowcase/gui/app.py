@@ -58,6 +58,11 @@ class App:
         if source:
             self._set_source(Path(source))
         self._update_controls()
+        if sys.platform == "darwin":
+            # 把檔案拖到 Dock 或 Finder 裡的 app 圖示上時，macOS 送的是 Apple Event，不是命令列參數
+            root.createcommand("::tk::mac::OpenDocument", self._open_documents)
+            # Cmd+Q 也要經過「還沒輸出完成」的確認
+            root.createcommand("::tk::mac::Quit", self._close)
 
     # ---- 版面 ----
 
@@ -200,6 +205,16 @@ class App:
     def _set_source(self, source: Path) -> None:
         self.source.set(str(source))
         self.output.set(str(default_output(source)))
+
+    def _open_documents(self, *paths: str) -> None:
+        """拖了好幾個檔案時只取第一個；出片中不換影片專案。"""
+        if self.worker is not None:
+            messagebox.showinfo(TITLE, "出片中不能換影片專案，請等這次出片結束。", parent=self.root)
+            return
+        if paths:
+            self._set_source(Path(paths[0]))
+            self._update_controls()
+            self.root.lift()
 
     def _choose_output(self) -> None:
         current = Path(self.output.get()) if self.output.get() else None

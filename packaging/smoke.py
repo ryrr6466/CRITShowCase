@@ -1,6 +1,6 @@
 """對建好的免安裝版做煙霧測試，在 PATH 上沒有 ffmpeg、Python、Deno、Node 的環境執行 exe。
 
-用法：python packaging/smoke.py dist/critshowcase [--youtube]
+用法：python packaging/smoke.py dist/critshowcase [--youtube]（macOS：dist/CRITShowCase）
 --youtube 會真的從 YouTube 下載一個片段；網路或 YouTube 可能讓它失敗，所以預設不跑。
 """
 from __future__ import annotations
@@ -19,26 +19,37 @@ MISSING = ("ffmpeg", "ffprobe", "python", "deno", "node")
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("app", type=Path, help="解壓後的 critshowcase 資料夾")
+    parser.add_argument("app", type=Path, help="解壓後的資料夾：Windows 是 critshowcase，macOS 是放著 CRITShowCase.app 的 CRITShowCase")
     parser.add_argument("--youtube", action="store_true", help="也測試實際下載 YouTube 片段")
     args = parser.parse_args()
-    exe = args.app / "critshowcase.exe"
+    exe, gui, tools = layout(args.app)
     env = clean_env()
 
     run(exe, ["--version"], env)
     run(exe, ["--help"], env)
-    check_gui(args.app / "critshowcase-gui.exe", env)
+    check_gui(gui, env)
     with tempfile.TemporaryDirectory() as tmp:
-        check_render(exe, args.app, SMOKE / "static.zip", Path(tmp) / "static.mp4", 7, env)
+        check_render(exe, tools, SMOKE / "static.zip", Path(tmp) / "static.mp4", 7, env)
         if args.youtube:
-            check_render(exe, args.app, SMOKE / "youtube.zip", Path(tmp) / "youtube.mp4", 4, env)
+            check_render(exe, tools, SMOKE / "youtube.zip", Path(tmp) / "youtube.mp4", 4, env)
     print("煙霧測試通過")
 
 
+def layout(app: Path) -> tuple[Path, Path, Path]:
+    """（命令列版、GUI、tools 資料夾）。"""
+    if sys.platform == "darwin":
+        executables = app / "CRITShowCase.app" / "Contents" / "MacOS"
+        return executables / "critshowcase", executables / "critshowcase-gui", executables / "tools"
+    return app / "critshowcase.exe", app / "critshowcase-gui.exe", app / "tools"
+
+
 def clean_env() -> dict[str, str]:
-    """PATH 只留 Windows 系統資料夾，確認 exe 不靠使用者裝的工具。"""
-    root = os.environ.get("SYSTEMROOT", r"C:\Windows")
-    path = os.pathsep.join([str(Path(root) / "System32"), root])
+    """PATH 只留系統資料夾，確認 exe 不靠使用者裝的工具。"""
+    if sys.platform == "darwin":
+        path = os.pathsep.join(["/usr/bin", "/bin", "/usr/sbin", "/sbin"])
+    else:
+        root = os.environ.get("SYSTEMROOT", r"C:\Windows")
+        path = os.pathsep.join([str(Path(root) / "System32"), root])
     for name in MISSING:
         found = shutil.which(name, path=path)
         if found:
@@ -68,11 +79,11 @@ def check_gui(exe: Path, env: dict[str, str]) -> None:
         sys.exit(f"critshowcase-gui 結束碼 {result.returncode}，應為 0")
 
 
-def check_render(exe: Path, app: Path, project: Path, output: Path, seconds: float, env: dict[str, str]) -> None:
+def check_render(exe: Path, tools: Path, project: Path, output: Path, seconds: float, env: dict[str, str]) -> None:
     # --refresh：不用片段快取，每次都真的下載
     run(exe, [str(project), "-o", str(output), "--refresh"], env)
     probe = subprocess.run(
-        [str(app / "tools" / "ffprobe.exe"), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(output)],
+        [str(tools / ("ffprobe.exe" if sys.platform == "win32" else "ffprobe")), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(output)],
         check=True, capture_output=True, text=True,
     )
     actual = float(probe.stdout)

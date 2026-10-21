@@ -1,6 +1,6 @@
 """找外部工具（ffmpeg、ffprobe、Deno）的路徑。
 
-打包版（PyInstaller）把工具放在 exe 旁邊的 tools 資料夾，先找那裡、找不到才找 PATH；
+打包版（PyInstaller）把工具放在 exe 旁邊的 tools 資料夾（macOS 是 CRITShowCase.app/Contents/MacOS/tools），先找那裡、找不到才找 PATH；
 用 pip 安裝時只找 PATH。
 """
 from __future__ import annotations
@@ -30,4 +30,6 @@ def missing_hint(name: str, pip_hint: str) -> str:
     """找不到工具時給使用者的訊息：pip 版教人安裝；打包版的工具本來就附在裡面，是解壓不完整。"""
     if not is_frozen():
         return pip_hint
+    if sys.platform == "darwin":
+        return f"CRITShowCase.app 不完整，找不到 {name}。請重新下載、解壓，不要更動 app 裡面的檔案。"
     return f"critshowcase 安裝不完整，找不到 {name}。請重新解壓下載的 zip，整個資料夾一起使用（不要只複製 critshowcase.exe）。"
