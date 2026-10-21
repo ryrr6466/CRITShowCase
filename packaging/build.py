@@ -400,7 +400,11 @@ def bundled_distributions() -> list[str]:
     from PyInstaller.archive.readers import ZlibArchiveReader
 
     modules = {name.split(".")[0] for name in ZlibArchiveReader(str(BUILD / "pyinstaller" / "critshowcase" / "PYZ-00.pyz")).toc}
-    modules |= {path.name.split(".")[0] for path in (APP / "_internal").iterdir()}
+    # 擴充模組與套件資料夾：Windows 在 _internal；macOS 在 app 的 Frameworks（程式）與 Resources（資料）
+    contents = MACOS_STAGE / APP_BUNDLE.name / "Contents"
+    for folder in (APP / "_internal", contents / "Frameworks", contents / "Resources"):
+        if folder.is_dir():
+            modules |= {path.name.split(".")[0] for path in folder.iterdir()}
     owners = packages_distributions()
     return sorted({dist for module in modules for dist in owners.get(module, [])} - {"critshowcase"})
 
