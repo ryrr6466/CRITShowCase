@@ -241,7 +241,9 @@ def download(tool: Tool) -> Path:
         target.parent.mkdir(parents=True, exist_ok=True)
         print(f"下載 {tool.url}")
         partial = target.with_suffix(".part")
-        with urllib.request.urlopen(tool.url) as response, partial.open("wb") as file:
+        # martin-riedl.de 擋 urllib 預設的 User-Agent（403）
+        request = urllib.request.Request(tool.url, headers={"User-Agent": "critshowcase-build"})
+        with urllib.request.urlopen(request) as response, partial.open("wb") as file:
             shutil.copyfileobj(response, file)
         actual = sha256(partial)
         if actual != tool.sha256:
