@@ -327,13 +327,15 @@ def write_tcl_tk_licenses(dest: Path) -> None:
     """GUI 用的 Tcl／Tk 要保留著作權聲明，Python 的 LICENSE.txt 沒有列。
 
     Windows 的 Python 3.14 起 Tcl／Tk 的 library 包成 tcl\\libtcl*.zip、libtk*.zip，更早的版本是資料夾；
-    macOS 的在 lib 底下。都找不到時，用 PyInstaller 收進去的那份。
+    macOS 的在 lib 底下，Tcl 9 的 library 是接在 libtcl9.0.dylib 後面的 zip（zipfs）。
+    都找不到時，用 PyInstaller 收進去的那份。
     """
     base = Path(sys.base_prefix)
     for name in ("tcl", "tk"):
         text = None
         for tcl in (base / "tcl", base / "lib"):
-            for archive in tcl.glob(f"lib{name}*.zip"):
+            archives = [*tcl.glob(f"lib{name}*.zip"), *tcl.glob(f"lib{name}*.dylib")]
+            for archive in (a for a in archives if zipfile.is_zipfile(a)):
                 with zipfile.ZipFile(archive) as z:
                     member = next((m for m in z.namelist() if m.endswith("license.terms")), None)
                     if member:
@@ -345,7 +347,8 @@ def write_tcl_tk_licenses(dest: Path) -> None:
         if text is None and bundled.is_file():
             text = bundled.read_bytes()
         if text is None:
-            sys.exit(f"找不到 {name} 的 license.terms（{base}）")
+            candidates = [str(p) for p in (base / "lib").glob(f"*{name}*")] + [str(p) for p in (base / "tcl").glob("*")]
+            sys.exit(f"找不到 {name} 的 license.terms（{base}）；找過：{candidates}")
         (dest / f"{name}-license.terms.txt").write_bytes(text)
 
 
