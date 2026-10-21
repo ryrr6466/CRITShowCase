@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "critshowcase"
-version = "0.3.0"
+version = "1.0.0"
 description = "CRITShowCase（B50 影片）的出片工具：讀 critlog.me 匯出的影片專案，合成 mp4"
 readme = "README.md"
 license = "MIT"
