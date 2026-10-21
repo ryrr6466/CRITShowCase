@@ -362,9 +362,37 @@ def write_tcl_tk_licenses(dest: Path) -> None:
         if text is None and bundled.is_file():
             text = bundled.read_bytes()
         if text is None:
-            candidates = [str(p) for p in (base / "lib").glob(f"*{name}*")] + [str(p) for p in (base / "tcl").glob("*")]
-            sys.exit(f"找不到 {name} 的 license.terms（{base}）；找過：{candidates}")
+            text = license_from_tcl(name)
+        if text is None:
+            sys.exit(f"找不到 {name} 的 license.terms（{base}）")
         (dest / f"{name}-license.terms.txt").write_bytes(text)
+
+
+def license_from_tcl(name: str) -> bytes | None:
+    """問 Tcl 自己：library 在哪（info library），Tcl 9 內嵌的檔案有哪些（zipfs list）。
+
+    macOS 的 Python 把 Tcl／Tk 放在哪裡沒有固定的位置可猜，這樣不管放哪都找得到。
+    """
+    import tkinter
+
+    root = tkinter.Tk()
+    root.withdraw()
+    try:
+        library = Path(root.tk.eval(f"set {name}_library"))
+        paths = [str(library / "license.terms"), str(library.parent / "license.terms")]
+        if root.tk.eval("info commands zipfs"):
+            # 依路徑裡的資料夾名稱分出 tcl 與 tk 的那份，例如 //zipfs:/lib/tk/license.terms
+            for path in root.tk.splitlist(root.tk.eval("zipfs list *license.terms")):
+                if any(part == name or (part.startswith(name) and part[len(name):][:1].isdigit()) for part in str(path).split("/")):
+                    paths.append(str(path))
+        print(f"{name}：library {library}，找 license.terms：{paths}", flush=True)
+        for path in paths:
+            if root.tk.eval(f"file exists {{{path}}}") == "1":
+                text = root.tk.eval(f"set f [open {{{path}}}]; set data [read $f]; close $f; set data")
+                return str(text).encode("utf-8")
+        return None
+    finally:
+        root.destroy()
 
 
 def bundled_distributions() -> list[str]:
