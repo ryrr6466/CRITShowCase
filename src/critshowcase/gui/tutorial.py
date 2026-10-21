@@ -145,7 +145,7 @@ class TutorialWindow:
         text.tag_bind("link", "<Enter>", lambda event: text.configure(cursor="hand2"))
         text.tag_bind("link", "<Leave>", lambda event: text.configure(cursor="arrow"))
 
-        text.insert("end", "YouTube 要求登入驗證時，用瀏覽器擴充功能匯出 cookies.txt，再匯入 CRITShowCase。\n", "heading")
+        text.insert("end", "出片前請先用瀏覽器擴充功能匯出 YouTube 的 cookies.txt，再匯入 CRITShowCase。\n", "heading")
         text.insert("end", COMMON["why"] + "\n\n", "note")
         if browser.warning:
             text.insert("end", "⚠ " + browser.warning + "\n\n", "warning")

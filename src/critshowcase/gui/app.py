@@ -185,7 +185,7 @@ class App:
         if imported:
             self.cookie_status.set(f"已匯入（{imported.imported_at:%Y-%m-%d %H:%M}），出片時會使用。")
         else:
-            self.cookie_status.set("未匯入。YouTube 要求登入驗證時才需要。")
+            self.cookie_status.set("未匯入。出片前請先匯入，YouTube 才不會擋下載。")
         self.cookie_dot.configure(style="Ok.TLabel" if imported else "Off.TLabel")
         self.start.configure(state="normal" if not busy and self.source.get() else "disabled")
         self.open_folder.configure(state="normal" if not busy and self.last_output else "disabled")
@@ -278,8 +278,8 @@ class App:
                 f"詳細原因：{error}"
             )
         return (
-            "YouTube 要求登入驗證，這台電腦目前無法下載。\n"
-            "請用瀏覽器擴充功能匯出 YouTube 的 cookies.txt，按「匯入 cookies.txt…」匯入後再出片一次。"
+            "YouTube 要求登入驗證，沒有匯入 cookies 無法下載。\n"
+            "請先用瀏覽器擴充功能匯出 YouTube 的 cookies.txt，按「匯入 cookies.txt…」匯入後再出片一次。"
         )
 
     # ---- 出片 ----
