@@ -18,6 +18,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from dataclasses import dataclass, field
@@ -241,16 +243,29 @@ def download(tool: Tool) -> Path:
         target.parent.mkdir(parents=True, exist_ok=True)
         print(f"下載 {tool.url}")
         partial = target.with_suffix(".part")
-        # martin-riedl.de 擋 urllib 預設的 User-Agent（403）
-        request = urllib.request.Request(tool.url, headers={"User-Agent": "critshowcase-build"})
-        with urllib.request.urlopen(request) as response, partial.open("wb") as file:
-            shutil.copyfileobj(response, file)
+        fetch(tool.url, partial)
         actual = sha256(partial)
         if actual != tool.sha256:
             partial.unlink()
             sys.exit(f"{target.name} 的 sha256 不符：應為 {tool.sha256}，實際 {actual}")
         partial.replace(target)
     return target
+
+
+def fetch(url: str, dest: Path, attempts: int = 4) -> None:
+    """下載中斷時重試幾次：martin-riedl.de 是個人架的伺服器，偶爾會斷線（Connection reset by peer）。"""
+    # martin-riedl.de 擋 urllib 預設的 User-Agent（403）
+    request = urllib.request.Request(url, headers={"User-Agent": "critshowcase-build"})
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response, dest.open("wb") as file:
+                shutil.copyfileobj(response, file)
+            return
+        except (OSError, urllib.error.URLError) as error:
+            if attempt == attempts:
+                raise
+            print(f"下載失敗（{error}），{attempt * 10} 秒後重試", flush=True)
+            time.sleep(attempt * 10)
 
 
 def sha256(path: Path) -> str:
