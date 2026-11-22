@@ -53,7 +53,11 @@ def duration(path: Path) -> float | None:
         return None
 
 
-def run(args: list[str]) -> None:
-    result = subprocess.run([_tool("ffmpeg"), "-y", "-v", "error", *args], capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
+def run(args: list[str], cwd: Path | None = None) -> None:
+    """cwd：相對路徑以這個資料夾為準（用來縮短命令列）。"""
+    result = subprocess.run(
+        [_tool("ffmpeg"), "-y", "-v", "error", *args],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW, cwd=cwd,
+    )
     if result.returncode != 0:
         raise RenderError(f"ffmpeg 失敗：{result.stderr.strip()[-2000:]}")
