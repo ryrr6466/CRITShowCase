@@ -1,9 +1,12 @@
 """seam：render(project, output, downloader=…) 從頭到尾的合成，用 ffprobe 與抽樣像素檢查成品（spec §8.3）。"""
+from pathlib import Path
+
 import pytest
 
 from conftest import BOX, CLIP, COLORS, H, W, FakeDownloader, close, duration, intro, mean_volume, outro, pixel, probe, song
 from critshowcase.project import load_project
-from critshowcase.render import render
+from critshowcase import render as render_module
+from critshowcase.render import JOIN_BATCH, render
 
 
 def streams(path, kind):
@@ -239,3 +242,50 @@ def test_zero_second_crossfade_behaves_like_cut(make_project, tmp_path):
 
     assert duration(out) == pytest.approx(9, abs=0.15)
     assert mean_volume(out, 3.2, 5.6) < -80
+
+
+@pytest.mark.parametrize("transition", ["cut", "crossfade"])
+def test_long_project_stays_under_windows_command_line_limit(make_project, tmp_path, monkeypatch, transition):
+    """定數排行一支可以有上百段；Windows 的命令列上限是 32767 字元，超過就是 WinError 206。"""
+    import subprocess
+
+    from critshowcase import ffmpeg
+
+    commands = []
+
+    def fake_run(args, cwd=None):
+        commands.append(subprocess.list2cmdline(["ffmpeg", "-y", "-v", "error", *args]))
+        (Path(cwd or ".") / args[-1]).write_bytes(b"")
+
+    monkeypatch.setattr(ffmpeg, "run", fake_run)
+    project = load_project(make_project([song(n, seconds=6) for n in range(1, 301)], transition=transition))
+    # 使用者的暫存資料夾路徑可能很長
+    workdir = tmp_path / ("long-temp-folder-" * 4)
+    workdir.mkdir()
+
+    render(project, tmp_path / "out.mp4", workdir=workdir)
+
+    assert max(len(command) for command in commands) < 8000
+    # 串接分批進行，一次讀的檔案不超過 JOIN_BATCH 個（記憶體）
+    joins = [command for command in commands if "-/filter_complex" in command]
+    assert len(joins) > 1
+    assert max(command.split().count("-i") for command in joins) <= JOIN_BATCH
+
+
+@pytest.mark.parametrize("transition", ["cut", "crossfade"])
+def test_batched_join_keeps_the_same_timeline(make_project, tmp_path, monkeypatch, transition):
+    # 每批 2 個：5 段 → 3 個中間檔（最後一段單獨一批直接沿用）→ 2 個 → 輸出
+    monkeypatch.setattr(render_module, "JOIN_BATCH", 2)
+    project = load_project(make_project([song(n, seconds=2) for n in range(1, 6)], transition=transition))
+    out = tmp_path / "out.mp4"
+
+    render(project, out)
+
+    step = 1.5 if transition == "crossfade" else 2  # 每段開始的時間間隔（交疊 0.5 秒）
+    assert duration(out) == pytest.approx(step * 4 + 2, abs=0.15)
+    for i in range(5):
+        assert close(pixel(out, step * i + 1, W - 10, H - 10), COLORS[i]), i
+    if transition == "crossfade":
+        for i in range(1, 5):
+            mixed = pixel(out, step * i + 0.25, W - 10, H - 10)
+            assert close(mixed, tuple((a + b) // 2 for a, b in zip(COLORS[i - 1], COLORS[i])), 50), i

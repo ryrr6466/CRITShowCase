@@ -166,10 +166,22 @@ def _intermediate_codecs() -> list[str]:
     return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-r", str(FPS), "-c:a", "pcm_s16le", "-ar", str(SAMPLE_RATE), "-ac", "2"]
 
 
-def _crossfade_chain(project: Project) -> list[str]:
-    """相鄰段落的畫面與聲音交疊 transitionSeconds 秒；交疊不超過最短段落的一半。"""
+# 一次串接最多幾個檔。ffmpeg 會同時讀所有輸入，每個輸入在 filter 入口各囤約 100 MB 的 1080p 畫面：
+# 定數排行 134 段一次串接要 13 GB 以上的記憶體。超過就分批先串成中間檔，再串接中間檔。
+JOIN_BATCH = 12
+
+
+def _overlap(project: Project) -> float:
+    """相鄰段落交疊幾秒：transitionSeconds，但不超過最短段落的一半；直接切換是 0。"""
     seconds = [segment.seconds for segment in project.segments]
-    overlap = min(project.output.transition_seconds, min(seconds) / 2)
+    # 交疊 0 秒就是直接切換；xfade／acrossfade 不接受 0 秒
+    if project.output.transition != "crossfade" or project.output.transition_seconds <= 0 or len(seconds) < 2:
+        return 0.0
+    return min(project.output.transition_seconds, min(seconds) / 2)
+
+
+def _crossfade_chain(seconds: list[float], overlap: float) -> list[str]:
+    """相鄰輸入的畫面與聲音交疊 overlap 秒。"""
     filters, video, audio, elapsed = [], "v0", "a0", seconds[0]
     for i in range(1, len(seconds)):
         last = i == len(seconds) - 1
@@ -181,23 +193,54 @@ def _crossfade_chain(project: Project) -> list[str]:
 
 
 def _join(project: Project, parts: list[Path], output: Path) -> None:
-    inputs, filters = [], []
-    for i, (part, segment) in enumerate(zip(parts, project.segments)):
-        s = segment.seconds
-        inputs += ["-i", str(part)]
-        filters.append(f"[{i}:v]trim=0:{s},setpts=PTS-STARTPTS,settb=AVTB[v{i}]")
-        filters.append(f"[{i}:a]apad,atrim=0:{s},asetpts=PTS-STARTPTS[a{i}]")
-    # 交疊 0 秒就是直接切換；xfade／acrossfade 不接受 0 秒
-    if project.output.transition == "crossfade" and project.output.transition_seconds > 0 and len(parts) > 1:
-        filters += _crossfade_chain(project)
-    else:
-        labels = "".join(f"[v{i}][a{i}]" for i in range(len(parts)))
-        filters.append(f"{labels}concat=n={len(parts)}:v=1:a=1[v][a]")
-    ffmpeg.run([
-        *inputs,
-        "-filter_complex", ";".join(filters),
-        "-map", "[v]", "-map", "[a]",
+    """依段落秒數裁切後串接。所有段落都在同一個暫存資料夾（output 也是）。
+
+    段落多時分批：每 JOIN_BATCH 個先串成中間檔，中間檔的長度是各段秒數總和減掉批內的交疊，
+    批與批之間再用同樣的交疊秒數串接。每段的交疊不超過段落長度的一半，所以頭尾的交疊不會互相碰到，
+    分批串接和一次串接的時間軸相同。
+    """
+    folder = output.parent
+    assert all(part.parent == folder for part in parts)
+    overlap = _overlap(project)
+    items = [(part, segment.seconds) for part, segment in zip(parts, project.segments)]
+    level = 0
+    while len(items) > JOIN_BATCH:
+        level += 1
+        merged = []
+        for n in range(0, len(items), JOIN_BATCH):
+            batch = items[n:n + JOIN_BATCH]
+            if len(batch) == 1:
+                merged.append(batch[0])
+                continue
+            out = folder / f"join-{level}-{n // JOIN_BATCH:03d}.mkv"
+            _join_files(batch, overlap, out, [*_intermediate_codecs(), "-pix_fmt", "yuv420p"])
+            for file, _ in batch:
+                file.unlink()  # 用完就刪，暫存資料夾不會多佔一倍空間
+            merged.append((out, sum(s for _, s in batch) - overlap * (len(batch) - 1)))
+        items = merged
+    _join_files(items, overlap, output, [
         "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-r", str(FPS),
         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-        str(output),
     ])
+
+
+def _join_files(items: list[tuple[Path, float]], overlap: float, output: Path, codecs: list[str]) -> None:
+    """把同一個資料夾裡的檔案各裁成指定秒數後串接。
+
+    整串參數可能超過 Windows 命令列的 32767 字元（WinError 206），
+    所以 filter graph 寫成檔案用 -/filter_complex 讀入，並在暫存資料夾裡執行、輸入輸出只寫檔名。
+    """
+    folder = output.parent
+    inputs, filters = [], []
+    for i, (file, s) in enumerate(items):
+        inputs += ["-i", file.name]
+        filters.append(f"[{i}:v]trim=0:{s},setpts=PTS-STARTPTS,settb=AVTB[v{i}]")
+        filters.append(f"[{i}:a]apad,atrim=0:{s},asetpts=PTS-STARTPTS[a{i}]")
+    if overlap > 0 and len(items) > 1:
+        filters += _crossfade_chain([s for _, s in items], overlap)
+    else:
+        labels = "".join(f"[v{i}][a{i}]" for i in range(len(items)))
+        filters.append(f"{labels}concat=n={len(items)}:v=1:a=1[v][a]")
+    graph = output.with_suffix(".filter")
+    graph.write_text(";\n".join(filters), encoding="utf-8")
+    ffmpeg.run([*inputs, "-/filter_complex", graph.name, "-map", "[v]", "-map", "[a]", *codecs, output.name], cwd=folder)
